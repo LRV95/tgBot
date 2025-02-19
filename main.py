@@ -4,9 +4,9 @@ import csv
 import openpyxl
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, CallbackQueryHandler, ContextTypes
-from data.config import TOKEN, ADMIN_ID
-from database import Database
-from agents import RecommendationAgent
+from config import TOKEN, ADMIN_ID
+from source.database import Database
+from source.agents import RecommendationAgent
 
 # Состояния диалога
 MAIN_MENU = 0
@@ -252,7 +252,7 @@ class VolunteerBot:
             await update.message.reply_markdown("Возвращаемся в главное меню:", reply_markup=keyboard)
             return MAIN_MENU
         else:
-            from agents import ContextRouterAgent
+            from source.agents import ContextRouterAgent
             agent = ContextRouterAgent()
             response = agent.process_query(text, update.effective_user.id)
             await update.message.reply_markdown(response)
@@ -438,7 +438,7 @@ class VolunteerBot:
     async def process_csv_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             file = await context.bot.get_file(update.message.document.file_id)
-            data_folder = os.path.join("..", "data")
+            data_folder = os.path.join(".", "data")
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
             temp_path = os.path.join(data_folder, update.message.document.file_name)
@@ -476,7 +476,7 @@ class VolunteerBot:
     async def process_events_csv_document(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             file = await context.bot.get_file(update.message.document.file_id)
-            data_folder = os.path.join("..", "data")
+            data_folder = os.path.join(".", "data")
             if not os.path.exists(data_folder):
                 os.makedirs(data_folder)
             temp_path = os.path.join(data_folder, update.message.document.file_name)
@@ -521,7 +521,7 @@ class VolunteerBot:
             await update.message.reply_markdown("*🚫 You do not have access to this command.*")
             return
         try:
-            workbook = openpyxl.load_workbook("events.xlsx")
+            workbook = openpyxl.load_workbook("./data/events.xlsx")
             sheet = workbook.active
             count = 0
             for row in sheet.iter_rows(min_row=2, values_only=True):

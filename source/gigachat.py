@@ -1,7 +1,7 @@
 import requests
 import time
 import logging
-from data.config import AUTHORIZATION_KEY, GIGACHAT_TOKEN_URL, GIGACHAT_API_URL, MODEL_NAME, TEMPERATURE
+from config import AUTHORIZATION_KEY, GIGACHAT_TOKEN_URL, GIGACHAT_API_URL, MODEL_NAME, TEMPERATURE
 
 # Настройка логирования
 logger = logging.getLogger(__name__)

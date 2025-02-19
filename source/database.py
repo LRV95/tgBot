@@ -2,7 +2,7 @@ import sqlite3
 
 
 class Database:
-    def __init__(self, db_name='./data/database.db'):
+    def __init__(self, db_name='./database/database.db'):
         self.db_name = db_name
         self.create_tables()
 
