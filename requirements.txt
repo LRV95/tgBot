@@ -1,3 +1,4 @@
-python-telegram-bot
-openpyxl
-requests>=2.31.0 
+python-telegram-bot==20.7
+openpyxl==3.1.2
+requests==2.31.0
+python-dotenv==1.0.0 
