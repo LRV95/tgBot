@@ -13,3 +13,5 @@ GUEST_TAG_SELECTION = 8             # для выбора тегов при ре
 PROFILE_TAG_SELECTION = 9           # для изменения тегов при обновлении профиля
 PROFILE_UPDATE_SELECTION = 10       # выбор, что обновлять: контакты или теги
 WAIT_FOR_EVENTS_CSV = 11            # новое состояние для загрузки CSV с мероприятиями
+GUEST_CITY_SELECTION = 12           # регистрация города
+

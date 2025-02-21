@@ -26,7 +26,8 @@ from bot.states import (
     WAIT_FOR_PROFILE_UPDATE,
     PROFILE_TAG_SELECTION,
     PROFILE_UPDATE_SELECTION,
-    WAIT_FOR_EVENTS_CSV
+    WAIT_FOR_EVENTS_CSV,
+    GUEST_CITY_SELECTION
 )
 from bot.handlers.common import start, cancel
 from bot.handlers.admin import (
@@ -52,7 +53,8 @@ from bot.handlers.user import (
     handle_profile_menu,
     handle_profile_update_selection,
     handle_contact_update,
-    handle_profile_tag_selection
+    handle_profile_tag_selection,
+    handle_city_selection
 )
 
 class VolunteerBot:
@@ -115,13 +117,16 @@ class VolunteerBot:
                 ],
                 PROFILE_MENU: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)
+                ],
+                GUEST_CITY_SELECTION: [
+                    CallbackQueryHandler(handle_city_selection, pattern="^(city:|city_next:|city_prev:|done_cities)$")
                 ]
+
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
         self.application.add_handler(conv_handler)
 
-        # Обработчик загрузки CSV с проектами
         csv_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("load_csv", load_csv)],
             states={

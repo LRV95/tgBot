@@ -49,6 +49,7 @@ class Database:
                         registered_events TEXT DEFAULT '',
                         tags TEXT DEFAULT '',
                         city TEXT DEFAULT ''
+                    )
                 ''')
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS projects (

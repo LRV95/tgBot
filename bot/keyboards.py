@@ -43,3 +43,36 @@ def get_tag_selection_keyboard(selected_tags=None):
         [InlineKeyboardButton("спорт", callback_data="tag:спорт")],
         [InlineKeyboardButton("Готово", callback_data="done")]
     ])
+
+
+def get_city_selection_keyboard(selected_cities=None, page=0, page_size=2):
+    """Возвращает inline клавиатуру для выбора городов."""
+    if selected_cities is None:
+        selected_cities = []
+
+    CITIES = ["СПБ", "Москва", "Владивосток", "Казань"]
+
+    total_pages = (len(CITIES) + page_size - 1) // page_size
+    start = page * page_size
+    end = start + page_size
+    cities_on_page = CITIES[start:end]
+
+    buttons = []
+    for city in cities_on_page:
+        text = f"{city} {'✓' if city in selected_cities else ''}"
+        buttons.append(InlineKeyboardButton(text, callback_data=f"city:{city}"))
+
+    navigation = []
+    if page > 0:
+        navigation.append(InlineKeyboardButton("<<", callback_data=f"city_prev:{page}"))
+    if page < total_pages - 1:
+        navigation.append(InlineKeyboardButton(">>", callback_data=f"city_next:{page}"))
+
+    keyboard = []
+    if buttons:
+        keyboard.append(buttons)
+    if navigation:
+        keyboard.append(navigation)
+    keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
+
+    return InlineKeyboardMarkup(keyboard)

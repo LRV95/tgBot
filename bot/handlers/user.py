@@ -6,13 +6,15 @@ from bot.states import (
     MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME,
     GUEST_REGISTRATION, GUEST_TAG_SELECTION,
     PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
-    PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION
+    PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION,
+    GUEST_CITY_SELECTION
 )
 from bot.keyboards import (
     get_main_menu_keyboard,
     get_volunteer_home_keyboard,
     get_profile_menu_keyboard,
-    get_tag_selection_keyboard
+    get_tag_selection_keyboard,
+    get_city_selection_keyboard
 )
 from database.db import Database
 from services.ai_service import ContextRouterAgent
@@ -109,6 +111,11 @@ async def handle_guest_registration(update: Update, context: ContextTypes.DEFAUL
     context.user_data['selected_tags'] = []
     keyboard = get_tag_selection_keyboard()
     await update.message.reply_markdown("*Выберите интересующие вас теги:*", reply_markup=keyboard)
+
+    context.user_data['selected_cities'] = []
+    keyboard = get_city_selection_keyboard()  # Импортируйте эту функцию из keyboards.py
+    await update.message.reply_markdown("*Выберите города, в которых вы активны:*", reply_markup=keyboard)
+
     return GUEST_TAG_SELECTION
 
 async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -279,6 +286,54 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
                 tags_str
             )
         await query.edit_message_text(text="*✅ Профиль обновлён. Теги: " + tags_str + "*", parse_mode="Markdown")
+        keyboard = get_main_menu_keyboard(current_user.get("role", "user"))
+        await query.message.reply_markdown("*📌 Выберите раздел:*", reply_markup=keyboard)
+        return MAIN_MENU
+
+async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data.startswith("city_next:"):
+        current_page = int(data.split(":")[1])
+        new_page = current_page + 1
+        keyboard = get_city_selection_keyboard(context.user_data.get('selected_cities', []), page=new_page)
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+        return GUEST_CITY_SELECTION
+    if data.startswith("city_prev:"):
+        current_page = int(data.split(":")[1])
+        new_page = current_page - 1 if current_page > 0 else 0
+        keyboard = get_city_selection_keyboard(context.user_data.get('selected_cities', []), page=new_page)
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+        return GUEST_CITY_SELECTION
+
+    if data.startswith("city:"):
+        city = data.split(":", 1)[1]
+        selected = context.user_data.get('selected_cities', [])
+        if city in selected:
+            selected.remove(city)
+        else:
+            selected.append(city)
+        context.user_data['selected_cities'] = selected
+        keyboard = get_city_selection_keyboard(selected, page=0)
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+        return GUEST_CITY_SELECTION
+
+    # Завершение выбора
+    if data == "done_cities":
+        user = update.effective_user
+        selected = context.user_data.get('selected_cities', [])
+        cities_str = ", ".join(selected)
+        current_user = db.get_user(user.id)
+        if current_user:
+            db.save_user(
+                user.id,
+                current_user.get("first_name", ""),
+                current_user.get("role", "user"),
+                cities=cities_str
+            )
+        await query.edit_message_text(text="*✅ Города сохранены: " + cities_str + "*", parse_mode="Markdown")
         keyboard = get_main_menu_keyboard(current_user.get("role", "user"))
         await query.message.reply_markdown("*📌 Выберите раздел:*", reply_markup=keyboard)
         return MAIN_MENU
