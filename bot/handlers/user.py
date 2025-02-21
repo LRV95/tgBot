@@ -31,7 +31,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return GUEST_REGISTRATION
         elif choice == "🤖 ИИ Помощник":
             exit_keyboard = ReplyKeyboardMarkup([["Выход."]], resize_keyboard=True)
-            await update.message.reply_markdown("Введите ваш запрос для ИИ Помощника:", reply_markup=exit_keyboard)
+            await update.message.reply_markdown("*Введите ваш запрос для ИИ Помощника:*", reply_markup=exit_keyboard)
             return AI_CHAT
         elif choice == "Мероприятия":
             events = db.get_all_events()

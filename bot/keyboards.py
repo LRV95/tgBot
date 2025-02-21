@@ -8,23 +8,20 @@ def get_main_menu_keyboard(role="user"):
         return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
                                   ["/load_excel", "/set_admin", "/set_moderator"],
                                   ["/delete_user", "/find_user_id"],
-                                  ["/find_users_name", "/find_users_email", "/delete_me", "/load_csv", "/load_events_csv"]],
+                                  ["/find_users_name", "/find_users_email", "/load_csv", "/load_events_csv"]],
                                  resize_keyboard=True)
     elif role == "moderator":
         return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
                                   ["/delete_user", "/find_user_id"],
-                                  ["/delete_me", "/load_csv", "/load_events_csv"]],
-                                 resize_keyboard=True)
-    elif role == "guest":
-        return ReplyKeyboardMarkup([["🤖 ИИ Помощник", "Мероприятия"], ["Регистрация", "Выход"]],
+                                  ["/load_csv", "/load_events_csv"]],
                                  resize_keyboard=True)
     else:
-        return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"]],
+        return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера", "Мероприятия"]],
                                  resize_keyboard=True)
 
 def get_volunteer_home_keyboard():
     """Возвращает клавиатуру домашнего экрана волонтера."""
-    return ReplyKeyboardMarkup([["Регистрация", "Профиль", "Текущие мероприятия"],
+    return ReplyKeyboardMarkup([["Профиль", "Текущие мероприятия"],
                               ["Бонусы", "Информация", "Выход."]],
                              resize_keyboard=True)
 

@@ -37,8 +37,11 @@ def get_access_token():
     payload = {'scope': 'GIGACHAT_API_PERS'}
 
     try:
-        response = requests.post(GIGACHAT_TOKEN_URL, headers=headers, data=payload, verify=False)
+        response = requests.post(GIGACHAT_TOKEN_URL, headers=headers, data=payload, verify=True)
         response.raise_for_status()
+    except requests.exceptions.SSLError:
+        logger.error("Ошибка SSL сертификата при подключении к GigaChat API")
+        raise Exception("Ошибка SSL сертификата при подключении к GigaChat API")
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка при получении токена: {e}")
         raise Exception(f"Ошибка при получении токена: {e}")
@@ -70,8 +73,11 @@ def get_gigachat_response(prompt):
     }
 
     try:
-        response = requests.post(GIGACHAT_API_URL, headers=headers, json=payload, verify=False)
+        response = requests.post(GIGACHAT_API_URL, headers=headers, json=payload, verify=True)
         response.raise_for_status()
+    except requests.exceptions.SSLError:
+        logger.error("Ошибка SSL сертификата при подключении к GigaChat API")
+        return {"error": "Ошибка SSL сертификата при подключении к GigaChat API"}
     except requests.exceptions.RequestException as e:
         logger.error(f"Ошибка при запросе к GigaChat API: {e}")
         return {"error": f"Ошибка при запросе к GigaChat API: {e}"}

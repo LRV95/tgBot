@@ -1,6 +1,9 @@
 """Основной файл бота."""
 
 import logging
+import signal
+import sys
+from telegram import Update
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -61,10 +64,18 @@ class VolunteerBot:
         self.logger = logging.getLogger(__name__)
         logging.basicConfig(
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            level=logging.INFO
+            level=logging.INFO,
+            handlers=[
+                logging.FileHandler("bot.log"),
+                logging.StreamHandler(sys.stdout)
+            ]
         )
-        self.application = Application.builder().token(self.token).build()
-        self.setup_handlers()
+        try:
+            self.application = Application.builder().token(self.token).build()
+            self.setup_handlers()
+        except Exception as e:
+            self.logger.critical(f"Критическая ошибка при инициализации бота: {e}")
+            sys.exit(1)
 
     def setup_handlers(self):
         """Настройка обработчиков команд."""
@@ -74,7 +85,7 @@ class VolunteerBot:
             states={
                 MAIN_MENU: [
                     MessageHandler(
-                        filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонтера|Мероприятия|Регистрация|Выход)$"),
+                        filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Помощник|🤖 ИИ Волонтера|Мероприятия|Регистрация|Выход)$"),
                         handle_main_menu
                     )
                 ],
@@ -146,8 +157,23 @@ class VolunteerBot:
 
     def run(self):
         """Запуск бота."""
-        self.application.run_polling()
+        try:
+            # Регистрируем обработчики сигналов
+            for sig in (signal.SIGTERM, signal.SIGINT):
+                self.application.add_handler(
+                    CommandHandler(str(sig), lambda u, c: self.shutdown(sig))
+                )
+            
+            self.logger.info("Бот запущен и готов к работе")
+            self.application.run_polling(allowed_updates=Update.ALL_TYPES)
+        except Exception as e:
+            self.logger.critical(f"Критическая ошибка при работе бота: {e}")
+            self.shutdown()
 
 if __name__ == "__main__":
-    bot = VolunteerBot()
-    bot.run()
+    try:
+        bot = VolunteerBot()
+        bot.run()
+    except Exception as e:
+        logging.critical(f"Необработанная ошибка: {e}")
+        sys.exit(1)
