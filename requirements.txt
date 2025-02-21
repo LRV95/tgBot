@@ -1,0 +1,3 @@
+python-telegram-bot
+openpyxl
+requests>=2.31.0 

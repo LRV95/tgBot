@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from database import Database
+from source.database import Database
 from source.gigachat import get_gigachat_response
 
 tags = ['small_talk', 'events_recommendation'] #TODO: Перенести куда-то? Мб в бд хранить?
