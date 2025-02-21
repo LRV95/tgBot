@@ -55,7 +55,11 @@ source venv/bin/activate
 
 3. Установите зависимости:
 ```bash
+# Windows
 pip install -r requirements.txt
+
+# Linux/macOS
+pip3 install -r requirements.txt
 ```
 
 4. Настройте конфигурацию:
