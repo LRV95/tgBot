@@ -47,8 +47,8 @@ class Database:
                         role TEXT DEFAULT 'user',
                         score INTEGER DEFAULT 0,
                         registered_events TEXT DEFAULT '',
-                        tags TEXT DEFAULT ''
-                    )
+                        tags TEXT DEFAULT '',
+                        city TEXT DEFAULT ''
                 ''')
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS projects (
@@ -67,26 +67,12 @@ class Database:
                         project_id INTEGER,
                         event_date TEXT,
                         start_time TEXT,
+                        city TEXT DEFAULT '',
                         participants_count INTEGER,
                         participation_points INTEGER,
                         creator TEXT,
                         tags TEXT,
                         FOREIGN KEY (project_id) REFERENCES projects(id)
-                    )
-                ''')
-                cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS cities (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        project_id INTEGER,
-                        event_id INTEGER,
-                        address TEXT,
-                        district TEXT,
-                        city TEXT,
-                        province TEXT,
-                        region TEXT,
-                        responsible_institution TEXT,
-                        FOREIGN KEY (project_id) REFERENCES projects(id),
-                        FOREIGN KEY (event_id) REFERENCES events(id)
                     )
                 ''')
                 conn.commit()
@@ -156,19 +142,6 @@ class Database:
                     INSERT INTO events (project_id, event_date, start_time, participants_count, participation_points, creator, tags)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 ''', (project_id, event_date, start_time, participants_count, participation_points, creator, tags))
-                conn.commit()
-            except sqlite3.IntegrityError as e:
-                conn.rollback()
-                raise e
-
-    def add_city(self, project_id, event_id, address, district, city, province, region, responsible_institution):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute('''
-                    INSERT INTO cities (project_id, event_id, address, district, city, province, region, responsible_institution)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (project_id, event_id, address, district, city, province, region, responsible_institution))
                 conn.commit()
             except sqlite3.IntegrityError as e:
                 conn.rollback()
