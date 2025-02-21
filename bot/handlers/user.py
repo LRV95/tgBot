@@ -1,6 +1,6 @@
 """Обработчики пользовательских команд."""
 
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 from bot.states import (
     MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME,
