@@ -10,10 +10,10 @@ from telegram.ext import (
     MessageHandler,
     ConversationHandler,
     filters,
-    CallbackQueryHandler
+    CallbackQueryHandler,
+    CallbackContext,
 )
-
-from config import TOKEN
+from config import TOKEN, ADMIN_ID
 from bot.states import (
     MAIN_MENU,
     WAIT_FOR_CSV,
@@ -57,9 +57,23 @@ from bot.handlers.user import (
     handle_city_selection
 )
 
+# Декоратор для проверки прав администратора
+def admin_required(func):
+    def wrapper(update: Update, context: CallbackContext):
+        user_id = update.effective_user.id
+        if user_id not in ADMIN_ID:
+            if update.message:
+                update.message.reply_text("У вас недостаточно прав для выполнения этой команды.")
+            elif update.effective_message:
+                update.effective_message.reply_text("У вас недостаточно прав для выполнения этой команды.")
+            return
+        return func(update, context)
+    return wrapper
+
+
 class VolunteerBot:
     """Основной класс бота."""
-    
+
     def __init__(self, token=TOKEN):
         """Инициализация бота."""
         self.token = token
@@ -123,7 +137,6 @@ class VolunteerBot:
                 GUEST_CITY_SELECTION: [
                     CallbackQueryHandler(handle_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")
                 ]
-
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
@@ -152,15 +165,15 @@ class VolunteerBot:
         )
         self.application.add_handler(events_csv_conv_handler)
 
-        # Административные команды
-        self.application.add_handler(CommandHandler("admin", admin_command))
-        self.application.add_handler(CommandHandler("load_excel", load_excel))
-        self.application.add_handler(CommandHandler("set_admin", set_admin))
-        self.application.add_handler(CommandHandler("set_moderator", set_moderator))
-        self.application.add_handler(CommandHandler("delete_user", delete_user))
-        self.application.add_handler(CommandHandler("find_user_id", find_user_id))
-        self.application.add_handler(CommandHandler("find_users_name", find_users_name))
-        self.application.add_handler(CommandHandler("find_users_email", find_users_email))
+        # Административные команды с проверкой прав администратора
+        self.application.add_handler(CommandHandler("admin", admin_required(admin_command)))
+        self.application.add_handler(CommandHandler("load_excel", admin_required(load_excel)))
+        self.application.add_handler(CommandHandler("set_admin", admin_required(set_admin)))
+        self.application.add_handler(CommandHandler("set_moderator", admin_required(set_moderator)))
+        self.application.add_handler(CommandHandler("delete_user", admin_required(delete_user)))
+        self.application.add_handler(CommandHandler("find_user_id", admin_required(find_user_id)))
+        self.application.add_handler(CommandHandler("find_users_name", admin_required(find_users_name)))
+        self.application.add_handler(CommandHandler("find_users_email", admin_required(find_users_email)))
 
     def run(self):
         """Запуск бота."""

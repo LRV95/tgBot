@@ -152,7 +152,7 @@ class Database:
         """Получает информацию о пользователе."""
         with self.connect() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, first_name, role, score, registered_events, tags FROM users WHERE id = ?', (user_id,))
+            cursor.execute('SELECT id, first_name, role, score, registered_events, tags, city FROM users WHERE id = ?', (user_id,))
             user = cursor.fetchone()
             if user:
                 logger.info(f"Получен пользователь из БД: id={user[0]}, first_name={user[1]}, role={user[2]}")
@@ -162,7 +162,8 @@ class Database:
                     "role": user[2],
                     "score": user[3],
                     "registered_events": user[4],
-                    "tags": user[5]
+                    "tags": user[5],
+                    "city": user[6]
                 }
             logger.info(f"Пользователь с id={user_id} не найден в БД")
             return None
@@ -173,11 +174,9 @@ class Database:
             logger.info(f"Попытка сохранения пользователя: id={user_id}, first_name={first_name}, role={role}")
             with self.connect() as conn:
                 cursor = conn.cursor()
-                # Проверяем, существует ли пользователь
                 existing_user = self.get_user(user_id)
                 if existing_user:
                     logger.info(f"Обновляем существующего пользователя: id={user_id}")
-                    # Если пользователь существует, сохраняем текущие значения
                     cursor.execute('''
                         UPDATE users 
                         SET first_name = ?,
@@ -186,18 +185,14 @@ class Database:
                     ''', (first_name, role, user_id))
                 else:
                     logger.info(f"Создаем нового пользователя: id={user_id}")
-                    # Если это новый пользователь, создаем запись
                     cursor.execute('''
                         INSERT INTO users 
-                        (id, first_name, role, score, registered_events, tags)
-                        VALUES (?, ?, ?, 0, '', '')
+                        (id, first_name, role, score, registered_events, tags, city)
+                        VALUES (?, ?, ?, 0, '', '', '')
                     ''', (user_id, first_name, role))
                 conn.commit()
-                
-                # Проверяем, что данные действительно сохранились
                 saved_user = self.get_user(user_id)
                 logger.info(f"Проверка сохраненных данных: {saved_user}")
-                
         except sqlite3.Error as e:
             logger.error(f"Ошибка при сохранении пользователя: {e}")
             raise DatabaseError(f"Ошибка при сохранении пользователя: {e}")
@@ -226,7 +221,8 @@ class Database:
                     "role": user[2],
                     "score": user[3],
                     "registered_events": user[4],
-                    "tags": user[5]
+                    "tags": user[5],
+                    "city": user[6]
                 }
             return None
 
@@ -243,25 +239,8 @@ class Database:
                     "role": row[2],
                     "score": row[3],
                     "registered_events": row[4],
-                    "tags": row[5]
-                }
-                for row in rows
-            ]
-
-    def find_users_by_email(self, email):
-        pattern = f"%{email}%"
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute('SELECT * FROM users WHERE email LIKE ?', (pattern,))
-            rows = cursor.fetchall()
-            return [
-                {
-                    "id": row[0],
-                    "first_name": row[1],
-                    "role": row[2],
-                    "score": row[3],
-                    "registered_events": row[4],
-                    "tags": row[5]
+                    "tags": row[5],
+                    "city": row[6]
                 }
                 for row in rows
             ]
@@ -299,25 +278,21 @@ class Database:
             return [self._format_event(row) for row in rows]
 
     def update_first_name(self, user_id, new_first_name):
-        """Обновляет имя пользователя."""
         logger.info(f"Обновление имени пользователя: id={user_id}, new_first_name={new_first_name}")
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE users SET first_name = ? WHERE id = ?', (new_first_name, user_id))
             conn.commit()
-            # Проверяем обновление
             updated_user = self.get_user(user_id)
             logger.info(f"Проверка обновления имени: {updated_user}")
 
     def update_user_city(self, user_id, new_city):
-        """Обновляет город пользователя."""
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE users SET city = ? WHERE id = ?', (new_city, user_id))
             conn.commit()
 
     def update_user_tags(self, user_id, tags):
-        """Обновляет теги пользователя."""
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute('UPDATE users SET tags = ? WHERE id = ?', (tags, user_id))
