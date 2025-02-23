@@ -1,59 +1,42 @@
-"""Общие обработчики команд бота."""
-
-from telegram import Update
-from telegram.ext import ContextTypes, ConversationHandler
-from bot.keyboards import get_main_menu_keyboard
-from bot.states import MAIN_MENU
-from database.db import Database
-from config import ADMIN_ID
 import logging
+from telegram import Update
+from telegram.ext import ContextTypes
+from bot.states import MAIN_MENU
+from bot.keyboards import get_main_menu_keyboard
+from database.db import Database
 
 logger = logging.getLogger(__name__)
 db = Database()
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /start."""
-    user = update.effective_user
-    user_record = db.get_user(user.id)
-    
-    logger.info(f"Пользователь {user.id} начал взаимодействие с ботом")
-    logger.info(f"Имя пользователя: {user.first_name}")
-    
-    if not user_record:
-        role = "admin" if user.id in ADMIN_ID else "user"
-        first_name = user.first_name if user.first_name else None
-        logger.info(f"Сохраняем нового пользователя: id={user.id}, first_name={first_name}, role={role}")
-        db.save_user(user.id, first_name, role)
-        greeting = first_name if first_name else "Пользователь"
-        if role == "admin":
-            await update.message.reply_markdown(f"*✅ {greeting}, вы зарегистрированы как администратор!* 🎉")
-        else:
-            await update.message.reply_markdown(f"*👋 Добро пожаловать, {greeting}!*")
-    else:
-        # Обновляем имя если оно изменилось
-        current_first_name = user.first_name if user.first_name else None
-        if current_first_name != user_record.get("first_name"):
-            logger.info(f"Обновляем имя пользователя {user.id}: {current_first_name}")
-            db.update_first_name(user.id, current_first_name)
-        
-        if user_record.get("role") == "user" and user.id in ADMIN_ID:
-            db.update_user_role(user.id, "admin")
-            
-        greeting = user.first_name if user.first_name else "Пользователь"
-        if user_record.get("role") == "admin":
-            await update.message.reply_markdown(f"*👋 С возвращением, {greeting}!*")
-        else:
-            await update.message.reply_markdown(f"*👋 С возвращением, {greeting}!*")
-    
-    role = db.get_user(user.id).get("role", "user")
-    keyboard = get_main_menu_keyboard(role)
-    await update.message.reply_markdown("*📌 Выберите раздел:*", reply_markup=keyboard)
-    return MAIN_MENU
 
-async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /cancel."""
-    await update.message.reply_markdown("*↩️ Возвращаемся в главное меню.*")
-    role = db.get_user(update.effective_user.id).get("role", "user")
-    keyboard = get_main_menu_keyboard(role)
-    await update.message.reply_markdown("Выберите раздел:", reply_markup=keyboard)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обработчик команды /start.
+    Если пользователь уже зарегистрирован, показывает главное меню.
+    Если нет – автоматически инициирует процесс регистрации.
+    """
+    user_id = update.effective_user.id
+    user = db.get_user(user_id)
+
+    if user:
+        await update.message.reply_text(
+            f"Добро пожаловать, {user.get('first_name', 'Пользователь')}!",
+            reply_markup=get_main_menu_keyboard()
+        )
+        return MAIN_MENU
+    else:
+        await update.message.reply_text(
+            "Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию."
+        )
+        # Импортируем обработчик регистрации из user.py и сразу его вызываем
+        from bot.handlers.user import handle_guest_registration
+        return await handle_guest_registration(update, context)
+
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Обработчик команды /cancel.
+    Прерывает текущий диалог и возвращает пользователя в главное меню.
+    """
+    await update.message.reply_text("Диалог прерван. Для начала заново отправьте /start.")
     return MAIN_MENU

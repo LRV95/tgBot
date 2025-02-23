@@ -30,19 +30,33 @@ def get_profile_menu_keyboard():
     return ReplyKeyboardMarkup([["Информация", "Изменить информацию", "Выход"]],
                              resize_keyboard=True)
 
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+
 def get_tag_selection_keyboard(selected_tags=None):
-    """Возвращает клавиатуру выбора тегов."""
+    """Возвращает inline-клавиатуру выбора тегов с отметкой выбранных тегов."""
     if selected_tags is None:
         selected_tags = []
-    
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("социальное", callback_data="tag:социальное"),
-         InlineKeyboardButton("медицина", callback_data="tag:медицина")],
-        [InlineKeyboardButton("экология", callback_data="tag:экология"),
-         InlineKeyboardButton("культура", callback_data="tag:культура")],
-        [InlineKeyboardButton("спорт", callback_data="tag:спорт")],
-        [InlineKeyboardButton("Готово", callback_data="done")]
-    ])
+
+    # Список доступных тегов
+    tags = ["социальное", "медицина", "экология", "культура", "спорт"]
+
+    # Создаем кнопки с отметками для выбранных тегов
+    buttons = []
+    for tag in tags:
+        text = f"{tag} {'✓' if tag in selected_tags else ''}"
+        buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{tag}"))
+
+    # Разбиваем кнопки по строкам (например, по 2 кнопки в строке)
+    keyboard = []
+    keyboard.append(buttons[:2])
+    keyboard.append(buttons[2:4])
+    keyboard.append([buttons[4]])
+    # Кнопка "Готово"
+    keyboard.append([InlineKeyboardButton("Готово", callback_data="done")])
+
+    return InlineKeyboardMarkup(keyboard)
 
 
 def get_city_selection_keyboard(selected_cities=None, page=0, page_size=2):

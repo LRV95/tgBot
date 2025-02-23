@@ -87,9 +87,11 @@ class VolunteerBot:
             states={
                 MAIN_MENU: [
                     MessageHandler(
-                        filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Помощник|🤖 ИИ Волонтера|Мероприятия|Регистрация|Выход)$"),
+                        filters.Regex(
+                            "(?i)^(🏠 Дом Волонтера|🤖 ИИ Помощник|🤖 ИИ Волонтера|Мероприятия|Регистрация|Выход)$"),
                         handle_main_menu
                     )
+
                 ],
                 AI_CHAT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)
@@ -104,7 +106,7 @@ class VolunteerBot:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_guest_registration)
                 ],
                 GUEST_TAG_SELECTION: [
-                    CallbackQueryHandler(handle_tag_selection, pattern="^(tag:|done)$")
+                    CallbackQueryHandler(handle_tag_selection, pattern="^(tag:.*|done)$")
                 ],
                 WAIT_FOR_PROFILE_UPDATE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)
@@ -119,7 +121,7 @@ class VolunteerBot:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)
                 ],
                 GUEST_CITY_SELECTION: [
-                    CallbackQueryHandler(handle_city_selection, pattern="^(city:|city_next:|city_prev:|done_cities)$")
+                    CallbackQueryHandler(handle_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")
                 ]
 
             },
