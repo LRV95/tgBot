@@ -90,3 +90,40 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=2):
     keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
 
     return InlineKeyboardMarkup(keyboard)
+
+def get_events_keyboard(events, page=0, page_size=5, total_count=0):
+    """
+    Возвращает inline‑клавиатуру для списка мероприятий.
+    Каждая кнопка позволяет зарегистрироваться на мероприятие.
+    """
+    buttons = []
+    for event in events:
+        # Извлекаем название мероприятия из tags, если возможно
+        name = ""
+        if event.get("tags"):
+            parts = event["tags"].split(";")
+            for part in parts:
+                if "Название:" in part:
+                    name = part.split("Название:")[1].strip()
+                    break
+        if not name:
+            name = f"Мероприятие #{event['id']}"
+        text = f"{name} ({event['event_date']} {event['start_time']})"
+        buttons.append(InlineKeyboardButton(text, callback_data=f"register_event:{event['id']}"))
+
+    keyboard = [[btn] for btn in buttons]
+
+    # Навигация по страницам
+    total_pages = (total_count + page_size - 1) // page_size
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("<<", callback_data=f"events_prev:{page}"))
+    if page < total_pages - 1:
+        nav_buttons.append(InlineKeyboardButton(">>", callback_data=f"events_next:{page}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+
+    # Кнопка возврата в главное меню
+    keyboard.append([InlineKeyboardButton("Назад", callback_data="back_to_menu")])
+
+    return InlineKeyboardMarkup(keyboard)

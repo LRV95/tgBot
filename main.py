@@ -54,6 +54,7 @@ from bot.handlers.user import (
     handle_profile_update_selection,
     handle_contact_update,
     handle_profile_tag_selection,
+    handle_events_callbacks,
     handle_city_selection
 )
 
@@ -114,7 +115,8 @@ class VolunteerBot:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)
                 ],
                 GUEST_HOME: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)
+                    CallbackQueryHandler(handle_events_callbacks,
+                                         pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu)$"),
                 ],
                 GUEST_REGISTRATION: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_guest_registration)

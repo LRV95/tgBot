@@ -297,3 +297,42 @@ class Database:
             cursor = conn.cursor()
             cursor.execute('UPDATE users SET tags = ? WHERE id = ?', (tags, user_id))
             conn.commit()
+
+    def get_events_by_city(self, city, limit=5, offset=0):
+        """Возвращает список мероприятий для указанного города с постраничной выборкой."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM events WHERE city = ? LIMIT ? OFFSET ?", (city, limit, offset))
+            rows = cursor.fetchall()
+            return [self._format_event(row) for row in rows]
+
+    def get_events_count_by_city(self, city):
+        """Возвращает общее количество мероприятий для указанного города."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM events WHERE city = ?", (city,))
+            count = cursor.fetchone()[0]
+            return count
+
+    def update_user_registered_events(self, user_id, registered_events):
+        """Обновляет список зарегистрированных мероприятий для пользователя."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET registered_events = ? WHERE id = ?", (registered_events, user_id))
+            conn.commit()
+
+    def get_events(self, limit=5, offset=0):
+        """Возвращает список всех мероприятий с постраничной выборкой."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM events LIMIT ? OFFSET ?", (limit, offset))
+            rows = cursor.fetchall()
+            return [self._format_event(row) for row in rows]
+
+    def get_events_count(self):
+        """Возвращает общее количество мероприятий во всех городах."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM events")
+            count = cursor.fetchone()[0]
+            return count

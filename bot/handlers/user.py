@@ -19,7 +19,8 @@ from bot.keyboards import (
     get_tag_selection_keyboard,
     get_main_menu_keyboard,
     get_volunteer_home_keyboard,
-    get_profile_menu_keyboard
+    get_profile_menu_keyboard,
+    get_events_keyboard
 )
 from database.db import Database
 from services.ai_service import RecommendationAgent
@@ -53,11 +54,12 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("Напишите ваш вопрос для ИИ:")
         return AI_CHAT
     elif text == "Мероприятия":
+        context.user_data["events_page"] = 0
         await update.message.reply_text(
             "Список мероприятий:",
             reply_markup=get_main_menu_keyboard()
         )
-        return GUEST_HOME
+        return await handle_events(update, context)
     elif text and "регистрация" in text.lower():
         user = update.effective_user
         first_name = user.first_name if user.first_name else "Пользователь"
@@ -312,3 +314,74 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
                 logger.error(f"Ошибка при редактировании сообщения профиля: {e}")
         return PROFILE_MENU
     return PROFILE_TAG_SELECTION
+
+
+async def handle_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """
+    Получает город пользователя (если указан), выбирает из БД мероприятия
+    для этого города или, если город не указан, выбирает все мероприятия.
+    Выводит inline‑клавиатуру с постраничной навигацией (по 5 объектов).
+    """
+    query = update.callback_query if update.callback_query else None
+    if query:
+        await query.answer()
+    user_id = update.effective_user.id
+    user = db.get_user(user_id)
+
+    page = context.user_data.get("events_page", 0)
+
+    if user and user.get("city"):
+        # Если город задан, выбираем мероприятия только для этого города
+        city = user["city"]
+        events = db.get_events_by_city(city, limit=5, offset=page * 5)
+        total_events = db.get_events_count_by_city(city)
+    else:
+        # Если город не задан, выводим все мероприятия
+        events = db.get_events(limit=5, offset=page * 5)
+        total_events = db.get_events_count()
+
+    if query:
+        await query.edit_message_text("Список мероприятий:",
+                                      reply_markup=get_events_keyboard(events, page, 5, total_events))
+    else:
+        await update.message.reply_text("Список мероприятий:",
+                                        reply_markup=get_events_keyboard(events, page, 5, total_events))
+    return GUEST_HOME
+
+async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    # Регистрация на мероприятие
+    if data.startswith("register_event:"):
+        event_id = data.split(":", 1)[1]
+        user_id = update.effective_user.id
+        user = db.get_user(user_id)
+        reg_events = user.get("registered_events", "")
+        events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
+        if event_id in events_list:
+            await query.answer("Вы уже зарегистрированы на это мероприятие.", show_alert=True)
+        else:
+            events_list.append(event_id)
+            db.update_user_registered_events(user_id, ",".join(events_list))
+            await query.answer("Вы успешно зарегистрированы!")
+        # Можно также обновить клавиатуру, чтобы отразить регистрацию (опционально)
+        return GUEST_HOME
+
+    # Обработка навигации: переход на следующую/предыдущую страницу
+    elif data.startswith("events_next:") or data.startswith("events_prev:"):
+        page = context.user_data.get("events_page", 0)
+        if data.startswith("events_next:"):
+            page += 1
+        else:
+            page = max(0, page - 1)
+        context.user_data["events_page"] = page
+        return await handle_events(update, context)
+
+    # Кнопка "Назад" – возвращаемся в главное меню
+    elif data == "back_to_menu":
+        await query.edit_message_text("Главное меню:", reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
+
+    return GUEST_HOME
