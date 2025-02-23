@@ -308,3 +308,17 @@ class Database:
             # Проверяем обновление
             updated_user = self.get_user(user_id)
             logger.info(f"Проверка обновления имени: {updated_user}")
+
+    def update_user_city(self, user_id, new_city):
+        """Обновляет город пользователя."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET city = ? WHERE id = ?', (new_city, user_id))
+            conn.commit()
+
+    def update_user_tags(self, user_id, tags):
+        """Обновляет теги пользователя."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET tags = ? WHERE id = ?', (tags, user_id))
+            conn.commit()

@@ -25,6 +25,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик главного меню."""
     user = update.effective_user
     role = db.get_user(user.id).get("role", "guest")
+
     choice = update.message.text.strip()
     
     if role == "guest":
