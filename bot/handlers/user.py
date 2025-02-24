@@ -126,12 +126,14 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
             db.update_user_city(user_id, pending_city)
         db.update_user_tags(user_id, ",".join(selected_tags))
         try:
-            await query.edit_message_text("Регистрация завершена!")
+            await query.message.reply_text(
+                "Регистрация успешно завершена! Добро пожаловать!",
+                reply_markup=get_main_menu_keyboard()
+            )
+            await query.message.delete()
         except Exception as e:
-            if "not modified" in str(e):
-                pass
-            else:
-                logger.error(f"Ошибка при редактировании сообщения после завершения регистрации: {e}")
+            logger.error(f"Ошибка при обновлении сообщения после регистрации: {e}")
+            
         context.user_data.pop("pending_first_name", None)
         context.user_data.pop("pending_city", None)
         context.user_data.pop("pending_tags", None)
@@ -245,15 +247,24 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     if data.startswith("register_event:"):
         event_id = data.split(":", 1)[1]
         user_id = update.effective_user.id
+        
+        # Проверяем, не зарегистрирован ли уже пользователь
+        if db.is_user_registered_for_event(user_id, event_id):
+            await query.answer("Вы уже зарегистрированы на это мероприятие")
+            return GUEST_HOME
+            
+        # Получаем информацию о мероприятии
+        event = db.get_event_by_id(int(event_id))
+        if not event:
+            await query.answer("Мероприятие не найдено")
+            return GUEST_HOME
+            
         user = db.get_user(user_id)
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
-        if event_id in events_list:
-            return await handle_events(update, context)
-        else:
-            events_list.append(event_id)
-            db.update_user_registered_events(user_id, ",".join(events_list))
-            return await handle_events(update, context)
+        events_list.append(event_id)
+        db.update_user_registered_events(user_id, ",".join(events_list))
+        return await handle_events(update, context)
     elif data.startswith("events_next:") or data.startswith("events_prev:"):
         page = context.user_data.get("events_page", 0)
         if data.startswith("events_next:"):
@@ -263,6 +274,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["events_page"] = page
         return await handle_events(update, context)
     elif data == "back_to_menu":
+        await query.edit_message_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard())
         return MAIN_MENU
     return MAIN_MENU
 
@@ -276,7 +288,16 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
         city = data.split(":", 1)[1]
         user_id = query.from_user.id
         db.update_user_city(user_id, city)
-        await query.edit_message_text("Ваш город обновлен!")
+        try:
+            # Отправляем новое сообщение с обновленной клавиатурой
+            await query.message.reply_text(
+                f"Ваш город успешно обновлен на: {city}",
+                reply_markup=get_profile_menu_keyboard()
+            )
+            # Удаляем старое сообщение с клавиатурой выбора городов
+            await query.message.delete()
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении сообщения после выбора города: {e}")
         return PROFILE_MENU
     elif data.startswith("city_next:") or data.startswith("city_prev:"):
         try:

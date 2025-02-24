@@ -1,4 +1,5 @@
 from telegram import ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from bot.constants import CITIES, TAGS
 
 def get_main_menu_keyboard(role="user"):
     if role == "admin":
@@ -28,22 +29,20 @@ def get_profile_menu_keyboard():
 def get_tag_selection_keyboard(selected_tags=None):
     if selected_tags is None:
         selected_tags = []
-    tags = ["социальное", "медицина", "экология", "культура", "спорт"]
     buttons = []
-    for tag in tags:
+    for tag in TAGS:
         text = f"{tag} {'✓' if tag in selected_tags else ''}"
         buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{tag}"))
     keyboard = []
-    keyboard.append(buttons[:2])
-    keyboard.append(buttons[2:4])
-    keyboard.append([buttons[4]])
+    # Разбиваем кнопки по 3 в ряд
+    for i in range(0, len(buttons), 3):
+        keyboard.append(buttons[i:i + 3])
     keyboard.append([InlineKeyboardButton("Готово", callback_data="done")])
     return InlineKeyboardMarkup(keyboard)
 
-def get_city_selection_keyboard(selected_cities=None, page=0, page_size=2):
+def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
     if selected_cities is None:
         selected_cities = []
-    CITIES = ["СПБ", "Москва", "Владивосток", "Казань"]
     total_pages = (len(CITIES) + page_size - 1) // page_size
     start = page * page_size
     end = start + page_size
@@ -58,8 +57,9 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=2):
     if page < total_pages - 1:
         navigation.append(InlineKeyboardButton(">>", callback_data=f"city_next:{page}"))
     keyboard = []
-    if buttons:
-        keyboard.append(buttons)
+    # Разбиваем города по 2 в ряд
+    for i in range(0, len(buttons), 2):
+        keyboard.append(buttons[i:i + 2])
     if navigation:
         keyboard.append(navigation)
     keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
