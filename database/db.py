@@ -51,6 +51,7 @@ class Database:
                         city TEXT DEFAULT ''
                     )
                 ''')
+
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS projects (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,20 +63,22 @@ class Database:
                         tags TEXT
                     )
                 ''')
+
                 cursor.execute('''
                     CREATE TABLE IF NOT EXISTS events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         project_id INTEGER,
                         event_date TEXT,
-                        start_time TEXT,
-                        city TEXT DEFAULT '',
+                        event_time TEXT,
+                        location TEXT DEFAULT '',
+                        creator TEXT,
                         participants_count INTEGER,
                         participation_points INTEGER,
-                        creator TEXT,
                         tags TEXT,
                         FOREIGN KEY (project_id) REFERENCES projects(id)
                     )
                 ''')
+
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Ошибка при создании таблиц: {e}")

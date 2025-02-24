@@ -42,12 +42,12 @@ class VolunteerBot:
                 VOLUNTEER_HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)],
                 GUEST_HOME: [CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu)$")],
                 GUEST_REGISTRATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_guest_registration)],
-                GUEST_TAG_SELECTION: [CallbackQueryHandler(handle_tag_selection, pattern="^(tag:.*|done)$")],
+                GUEST_CITY_SELECTION: [CallbackQueryHandler(handle_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")],
+                GUEST_TAG_SELECTION: [CallbackQueryHandler(handle_tag_selection, pattern="^(tag:.*|done_tags)$")],
                 WAIT_FOR_PROFILE_UPDATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)],
                 PROFILE_UPDATE_SELECTION: [CallbackQueryHandler(handle_profile_update_selection, pattern="^(update:.*)$")],
-                PROFILE_TAG_SELECTION: [CallbackQueryHandler(handle_profile_tag_selection, pattern="^(tag:|done_tags).*")],
+                PROFILE_TAG_SELECTION: [CallbackQueryHandler(handle_profile_tag_selection, pattern="^(tag:.*|done)$")],
                 PROFILE_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)],
-                GUEST_CITY_SELECTION: [CallbackQueryHandler(handle_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")],
                 PROFILE_CITY_SELECTION: [CallbackQueryHandler(handle_profile_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")]
             },
             fallbacks=[CommandHandler("cancel", cancel)]

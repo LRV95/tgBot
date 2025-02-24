@@ -107,6 +107,17 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
 async def handle_guest_registration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     first_name = user.first_name if user.first_name else "Пользователь"
+    user_id = user.id
+    
+    # Создаем пользователя в базе данных
+    try:
+        db.save_user(user_id, first_name)
+        logger.info(f"Создан новый пользователь: id={user_id}, first_name={first_name}")
+    except Exception as e:
+        logger.error(f"Ошибка при создании пользователя: {e}")
+        await update.message.reply_text("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.")
+        return MAIN_MENU
+    
     context.user_data["pending_first_name"] = first_name
     await update.message.reply_text("Для завершения регистрации, пожалуйста, выберите ваш город:", reply_markup=get_city_selection_keyboard())
     return GUEST_CITY_SELECTION
@@ -115,11 +126,13 @@ async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TY
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = query.from_user.id
+    selected_city = context.user_data.get("pending_city", "")
     page = context.user_data.get("city_page", 0)
     if data.startswith("city:"):
         city = data.split(":", 1)[1]
         # Если город уже выбран, убираем его из выбранных
-        if context.user_data.get("pending_city") == city:
+        if selected_city == city:
             context.user_data.pop("pending_city", None)
             await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
         else:
@@ -136,13 +149,14 @@ async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TY
         else:
             page -= 1
         context.user_data["city_page"] = page
-        selected = [context.user_data["pending_city"]] if "pending_city" in context.user_data else []
+        selected = [selected_city] if selected_city else []
         await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
         return GUEST_CITY_SELECTION
     elif data == "done_cities":
-        if not context.user_data.get("pending_city"):
-            await query.answer("Пожалуйста, выберите город перед тем как продолжить")
-            return GUEST_CITY_SELECTION
+        if selected_city:
+            # Сохраняем город в базу данных
+            db.update_user_city(user_id, selected_city)
+            logger.info(f"Сохранен город для пользователя {user_id}: {selected_city}")
         await query.edit_message_text("Теперь выберите теги, которые вас интересуют:", reply_markup=get_tag_selection_keyboard())
         return GUEST_TAG_SELECTION
     return GUEST_CITY_SELECTION
@@ -170,12 +184,10 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 logger.error(f"Ошибка при обновлении списка интересов: {e}")
         return GUEST_TAG_SELECTION
     elif data == "done_tags":
-        pending_first_name = context.user_data.get("pending_first_name", "Пользователь")
-        db.save_user(user_id, pending_first_name)
-        pending_city = context.user_data.get("pending_city", "")
-        if pending_city:
-            db.update_user_city(user_id, pending_city)
-        db.update_user_tags(user_id, ",".join(selected_tags))
+        # Сохраняем теги в базу данных
+        if selected_tags:
+            db.update_user_tags(user_id, ",".join(selected_tags))
+            logger.info(f"Сохранены теги для пользователя {user_id}: {selected_tags}")
         try:
             await query.message.reply_text(
                 "Регистрация успешно завершена! Добро пожаловать!",
@@ -188,7 +200,6 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("pending_first_name", None)
         context.user_data.pop("pending_city", None)
         context.user_data.pop("pending_tags", None)
-        context.user_data.pop("city_page", None)
         return MAIN_MENU
     return GUEST_TAG_SELECTION
 
