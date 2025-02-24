@@ -1,7 +1,7 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, GUEST_REGISTRATION, GUEST_TAG_SELECTION, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, GUEST_CITY_SELECTION, PROFILE_CITY_SELECTION
+from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, REGISTRATION, REGISTRATION_TAG_SELECTION, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION
 from bot.keyboards import get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard, get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard, get_profile_update_keyboard
 from database.db import Database
 from services.ai_service import RecommendationAgent
@@ -15,7 +15,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user = db.get_user(user_id)
     if not user:
         await update.message.reply_text("Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию.")
-        return await handle_guest_registration(update, context)
+        return await handle_registration(update, context)
     if text == "🏠 Дом Волонтера":
         await update.message.reply_text("Добро пожаловать в домашнюю страницу волонтера!", reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
@@ -30,7 +30,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         user = update.effective_user
         first_name = user.first_name if user.first_name else "Пользователь"
         await update.message.reply_text(f"Вы выбрали регистрацию.\nВаше имя: {first_name}\nДалее выберите ваш город для завершения регистрации.")
-        return await handle_guest_registration(update, context)
+        return await handle_registration(update, context)
     elif text == "Выход":
         await update.message.reply_text("Вы вышли из меню. Для повторного входа отправьте /start")
         return MAIN_MENU
@@ -104,12 +104,12 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Команда не распознана. Выберите действие.")
         return VOLUNTEER_HOME
 
-async def handle_guest_registration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
     first_name = user.first_name if user.first_name else "Пользователь"
     user_id = user.id
     
-    # Создаем пользователя в базе данных
+    # Сразу создаем пользователя в базе данных и начинаем регистрацию
     try:
         db.save_user(user_id, first_name)
         logger.info(f"Создан новый пользователь: id={user_id}, first_name={first_name}")
@@ -120,9 +120,9 @@ async def handle_guest_registration(update: Update, context: ContextTypes.DEFAUL
     
     context.user_data["pending_first_name"] = first_name
     await update.message.reply_text("Для завершения регистрации, пожалуйста, выберите ваш город:", reply_markup=get_city_selection_keyboard())
-    return GUEST_CITY_SELECTION
+    return REGISTRATION_CITY_SELECTION
 
-async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_registration_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -135,33 +135,40 @@ async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TY
         if selected_city == city:
             context.user_data.pop("pending_city", None)
             await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
+        # Если город не выбран, добавляем его в выбранные
         else:
             context.user_data["pending_city"] = city
             await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=[city], page=page))
-        return GUEST_CITY_SELECTION
+        return REGISTRATION_CITY_SELECTION
+    # Перелистывание страниц
     elif data.startswith("city_next:") or data.startswith("city_prev:"):
         try:
             page = int(data.split(":", 1)[1])
         except ValueError:
             page = 0
+        # Следующая страница
         if data.startswith("city_next:"):
             page += 1
+        # Предыдущая страница
         else:
             page -= 1
         context.user_data["city_page"] = page
         selected = [selected_city] if selected_city else []
         await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
-        return GUEST_CITY_SELECTION
+        return REGISTRATION_CITY_SELECTION
     elif data == "done_cities":
         if selected_city:
             # Сохраняем город в базу данных
             db.update_user_city(user_id, selected_city)
             logger.info(f"Сохранен город для пользователя {user_id}: {selected_city}")
+        else:
+            await query.edit_message_text("Пожалуйста, выберите город перед тем как продолжить", reply_markup=get_city_selection_keyboard())
+            return REGISTRATION_CITY_SELECTION
         await query.edit_message_text("Теперь выберите теги, которые вас интересуют:", reply_markup=get_tag_selection_keyboard())
-        return GUEST_TAG_SELECTION
-    return GUEST_CITY_SELECTION
+        return REGISTRATION_TAG_SELECTION
+    return REGISTRATION_CITY_SELECTION
 
-async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_registration_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     data = query.data
@@ -182,16 +189,25 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
                 pass
             else:
                 logger.error(f"Ошибка при обновлении списка интересов: {e}")
-        return GUEST_TAG_SELECTION
+        return REGISTRATION_TAG_SELECTION
     elif data == "done_tags":
         # Сохраняем теги в базу данных
         if selected_tags:
             db.update_user_tags(user_id, ",".join(selected_tags))
             logger.info(f"Сохранены теги для пользователя {user_id}: {selected_tags}")
+        else:
+            await query.edit_message_text("Пожалуйста, выберите теги перед тем как продолжить", reply_markup=get_tag_selection_keyboard())
+            return REGISTRATION_TAG_SELECTION
         try:
             await query.message.reply_text(
                 "Регистрация успешно завершена! Добро пожаловать!",
                 reply_markup=get_main_menu_keyboard()
+            )
+            # Вывод введенных данных
+            await query.message.reply_text(
+                f"👤 Имя: {context.user_data['pending_first_name']}\n"
+                f"🏙 Город: {context.user_data['pending_city']}\n"
+                f"🏷 Теги: {', '.join(context.user_data['pending_tags'])}"
             )
             await query.message.delete()
         except Exception as e:
@@ -201,7 +217,7 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("pending_city", None)
         context.user_data.pop("pending_tags", None)
         return MAIN_MENU
-    return GUEST_TAG_SELECTION
+    return REGISTRATION_TAG_SELECTION
 
 def escape_markdown_v2(text):
     """Экранирует специальные символы для Markdown V2."""

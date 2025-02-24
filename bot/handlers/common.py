@@ -31,8 +31,8 @@ async def start(update: Update, context: CallbackContext):
                 "Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию."
             )
             # Импортируем обработчик регистрации из user.py и сразу его вызываем
-            from bot.handlers.user import handle_guest_registration
-            return await handle_guest_registration(update, context)
+            from bot.handlers.user import handle_registration
+            return await handle_registration(update, context)
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
