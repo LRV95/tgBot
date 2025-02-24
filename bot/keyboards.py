@@ -106,6 +106,6 @@ def get_events_keyboard(events, page=0, page_size=5, total_count=0, registered_e
 
 def get_profile_update_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Контакты", callback_data="update:contacts"), InlineKeyboardButton("Теги", callback_data="update:tags")],
+        [InlineKeyboardButton("Имя", callback_data="update:name"), InlineKeyboardButton("Теги", callback_data="update:tags")],
         [InlineKeyboardButton("Город", callback_data="update:city")]
     ])

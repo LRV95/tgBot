@@ -224,8 +224,8 @@ async def handle_profile_update_selection(update: Update, context: ContextTypes.
     data = query.data
     if data.startswith("update:"):
         option = data.split(":", 1)[1]
-        if option == "contacts":
-            await query.edit_message_text("Введите новую контактную информацию:")
+        if option == "name":
+            await query.edit_message_text("Введите ваше новое имя:")
             return WAIT_FOR_PROFILE_UPDATE
         elif option == "tags":
             await query.edit_message_text("Выберите новые теги:", reply_markup=get_tag_selection_keyboard())
