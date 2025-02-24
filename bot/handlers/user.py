@@ -55,8 +55,8 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         return PROFILE_MENU
     if text == "Выход":
         reply = f"Возвращаемся в меню профиля!"
-        await update.message.reply_text(reply, reply_markup=get_profile_menu_keyboard())
-        return VOLUNTEER_HOME
+        await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard())
+        return MAIN_MENU
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
         return VOLUNTEER_HOME
@@ -150,11 +150,11 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Что вы хотите изменить?", reply_markup=get_profile_update_keyboard())
         return PROFILE_UPDATE_SELECTION
     elif text == "Выход":
-        await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard())
-        return MAIN_MENU
+        await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_volunteer_home_keyboard())
+        return VOLUNTEER_HOME
     else:
         await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
-        return PROFILE_MENU
+        return GUEST_HOME
 
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     new_first_name = update.message.text.strip()
