@@ -34,10 +34,10 @@ def get_tag_selection_keyboard(selected_tags=None):
         text = f"{tag} {'✓' if tag in selected_tags else ''}"
         buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{tag}"))
     keyboard = []
-    # Разбиваем кнопки по 3 в ряд
-    for i in range(0, len(buttons), 3):
-        keyboard.append(buttons[i:i + 3])
-    keyboard.append([InlineKeyboardButton("Готово", callback_data="done")])
+    # Разбиваем кнопки по 2 в ряд
+    for i in range(0, len(buttons), 2):
+        keyboard.append(buttons[i:i + 2])
+    keyboard.append([InlineKeyboardButton("Готово", callback_data="done_tags")])
     return InlineKeyboardMarkup(keyboard)
 
 def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
@@ -106,6 +106,6 @@ def get_events_keyboard(events, page=0, page_size=5, total_count=0, registered_e
 
 def get_profile_update_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Имя", callback_data="update:name"), InlineKeyboardButton("Теги", callback_data="update:tags")],
+        [InlineKeyboardButton("Имя", callback_data="update:name"), InlineKeyboardButton("Интересы", callback_data="update:tags")],
         [InlineKeyboardButton("Город", callback_data="update:city")]
     ])

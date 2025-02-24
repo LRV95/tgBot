@@ -75,9 +75,9 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
                 except:
                     continue
 
-        # Форматируем теги
-        tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
-        tags_text = "• " + "\n• ".join(escape_markdown_v2(tag) for tag in tags) if tags else "Не указаны"
+        # Форматируем интересы
+        interests = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+        interests_text = "• " + "\n• ".join(escape_markdown_v2(interest) for interest in interests) if interests else "Не указаны"
         
         # Формируем сообщение
         reply = (
@@ -86,7 +86,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
             f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
             f"🏆 *Баллы:* {user.get('score', 0)}\n"
             f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
-            f"🏷️ *Интересующие направления:*\n{tags_text}\n\n"
+            f"🏷️ *Интересы:*\n{interests_text}\n\n"
         )
         
         if registered_events:
@@ -167,9 +167,9 @@ async def handle_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYP
             if "not modified" in str(e):
                 pass
             else:
-                logger.error(f"Ошибка при обновлении клавиатуры тегов: {e}")
+                logger.error(f"Ошибка при обновлении списка интересов: {e}")
         return GUEST_TAG_SELECTION
-    elif data == "done":
+    elif data == "done_tags":
         pending_first_name = context.user_data.get("pending_first_name", "Пользователь")
         db.save_user(user_id, pending_first_name)
         pending_city = context.user_data.get("pending_city", "")
@@ -228,7 +228,11 @@ async def handle_profile_update_selection(update: Update, context: ContextTypes.
             await query.edit_message_text("Введите ваше новое имя:")
             return WAIT_FOR_PROFILE_UPDATE
         elif option == "tags":
-            await query.edit_message_text("Выберите новые теги:", reply_markup=get_tag_selection_keyboard())
+            # Загружаем текущие интересы пользователя
+            user = db.get_user(query.from_user.id)
+            current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+            context.user_data["profile_tags"] = current_tags
+            await query.edit_message_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
             return PROFILE_TAG_SELECTION
         elif option == "city":
             await query.edit_message_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
@@ -242,6 +246,7 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
     data = query.data
     user_id = query.from_user.id
     selected_tags = context.user_data.get("profile_tags", [])
+    
     if data.startswith("tag:"):
         tag = data.split(":", 1)[1]
         if tag in selected_tags:
@@ -255,17 +260,18 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
             if "not modified" in str(e):
                 pass
             else:
-                logger.error(f"Ошибка при обновлении клавиатуры профиля: {e}")
+                logger.error(f"Ошибка при обновлении списка интересов: {e}")
         return PROFILE_TAG_SELECTION
     elif data == "done_tags":
         db.update_user_tags(user_id, ",".join(selected_tags))
         try:
-            await query.edit_message_text("Ваши теги обновлены!")
+            await query.message.reply_text(
+                "Ваши интересы обновлены!",
+                reply_markup=get_profile_menu_keyboard()
+            )
+            await query.message.delete()
         except Exception as e:
-            if "not modified" in str(e):
-                pass
-            else:
-                logger.error(f"Ошибка при редактировании сообщения профиля: {e}")
+            logger.error(f"Ошибка при обновлении сообщения после выбора интересов: {e}")
         return PROFILE_MENU
     return PROFILE_TAG_SELECTION
 
