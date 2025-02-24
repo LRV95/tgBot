@@ -50,11 +50,54 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
     text = update.message.text
     if text == "Профиль":
         user = db.get_user(update.effective_user.id)
-        reply = f"Ваш профиль:\nИмя: {user.get('first_name', '')}\nРоль: {user.get('role', '')}\nБаллы: {user.get('score', 0)}"
-        await update.message.reply_text(reply, reply_markup=get_profile_menu_keyboard())
+        if not user:
+            await update.message.reply_text("❌ Ошибка: профиль не найден")
+            return MAIN_MENU
+            
+        # Получаем список мероприятий пользователя
+        registered_events = []
+        if user.get("registered_events"):
+            event_ids = [e.strip() for e in user["registered_events"].split(",") if e.strip()]
+            for event_id in event_ids:
+                try:
+                    event = db.get_event_by_id(int(event_id))
+                    if event:
+                        name = ""
+                        if event.get("tags"):
+                            parts = event["tags"].split(";")
+                            for part in parts:
+                                if "Название:" in part:
+                                    name = part.split("Название:")[1].strip()
+                                    break
+                        if not name:
+                            name = f"Мероприятие #{event['id']}"
+                        registered_events.append(f"• {escape_markdown_v2(name)} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)")
+                except:
+                    continue
+
+        # Форматируем теги
+        tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+        tags_text = "• " + "\n• ".join(escape_markdown_v2(tag) for tag in tags) if tags else "Не указаны"
+        
+        # Формируем сообщение
+        reply = (
+            f"👤 *Профиль волонтера*\n\n"
+            f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
+            f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
+            f"🏆 *Баллы:* {user.get('score', 0)}\n"
+            f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
+            f"🏷️ *Интересующие направления:*\n{tags_text}\n\n"
+        )
+        
+        if registered_events:
+            reply += f"📅 *Зарегистрированные мероприятия:*\n" + "\n".join(registered_events)
+        else:
+            reply += "📅 *Зарегистрированные мероприятия:* Нет активных регистраций"
+
+        await update.message.reply_markdown_v2(reply, reply_markup=get_profile_menu_keyboard())
         return PROFILE_MENU
     if text == "Выход":
-        reply = f"Возвращаемся в меню профиля!"
+        reply = f"Возвращаемся в главное меню!"
         await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard())
         return MAIN_MENU
     else:
@@ -158,55 +201,7 @@ def escape_markdown_v2(text):
 
 async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
-    if text == "Информация":
-        user = db.get_user(update.effective_user.id)
-        if not user:
-            await update.message.reply_text("❌ Ошибка: профиль не найден")
-            return MAIN_MENU
-            
-        # Получаем список мероприятий пользователя
-        registered_events = []
-        if user.get("registered_events"):
-            event_ids = [e.strip() for e in user["registered_events"].split(",") if e.strip()]
-            for event_id in event_ids:
-                try:
-                    event = db.get_event_by_id(int(event_id))
-                    if event:
-                        name = ""
-                        if event.get("tags"):
-                            parts = event["tags"].split(";")
-                            for part in parts:
-                                if "Название:" in part:
-                                    name = part.split("Название:")[1].strip()
-                                    break
-                        if not name:
-                            name = f"Мероприятие #{event['id']}"
-                        registered_events.append(f"• {escape_markdown_v2(name)} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)")
-                except:
-                    continue
-
-        # Форматируем теги
-        tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
-        tags_text = "• " + "\n• ".join(escape_markdown_v2(tag) for tag in tags) if tags else "Не указаны"
-        
-        # Формируем сообщение
-        reply = (
-            f"👤 *Профиль волонтера*\n\n"
-            f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
-            f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
-            f"🏆 *Баллы:* {user.get('score', 0)}\n"
-            f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
-            f"🏷️ *Интересующие направления:*\n{tags_text}\n\n"
-        )
-        
-        if registered_events:
-            reply += f"📅 *Зарегистрированные мероприятия:*\n" + "\n".join(registered_events)
-        else:
-            reply += "📅 *Зарегистрированные мероприятия:* Нет активных регистраций"
-
-        await update.message.reply_markdown_v2(reply, reply_markup=get_profile_menu_keyboard())
-        return PROFILE_MENU
-    elif text == "Изменить информацию":
+    if text == "Изменить информацию":
         await update.message.reply_text("Что вы хотите изменить?", reply_markup=get_profile_update_keyboard())
         return PROFILE_UPDATE_SELECTION
     elif text == "Выход":

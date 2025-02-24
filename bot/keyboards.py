@@ -23,7 +23,7 @@ def get_volunteer_home_keyboard():
                                resize_keyboard=True)
 
 def get_profile_menu_keyboard():
-    return ReplyKeyboardMarkup([["Информация", "Изменить информацию", "Выход"]],
+    return ReplyKeyboardMarkup([["Изменить информацию", "Выход"]],
                                resize_keyboard=True)
 
 def get_tag_selection_keyboard(selected_tags=None):
