@@ -43,26 +43,32 @@ def get_tag_selection_keyboard(selected_tags=None):
 def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
     if selected_cities is None:
         selected_cities = []
-    total_pages = (len(CITIES) + page_size - 1) // page_size
-    start = page * page_size
-    end = start + page_size
-    cities_on_page = CITIES[start:end]
     buttons = []
-    for city in cities_on_page:
-        text = f"{city} {'✓' if city in selected_cities else ''}"
+    start_idx = page * page_size
+    end_idx = start_idx + page_size
+    cities_slice = CITIES[start_idx:end_idx]
+    
+    for city in cities_slice:
+        text = f"{city} {'✔️' if city in selected_cities else ''}"
         buttons.append(InlineKeyboardButton(text, callback_data=f"city:{city}"))
-    navigation = []
-    if page > 0:
-        navigation.append(InlineKeyboardButton("<<", callback_data=f"city_prev:{page}"))
-    if page < total_pages - 1:
-        navigation.append(InlineKeyboardButton(">>", callback_data=f"city_next:{page}"))
+    
     keyboard = []
-    # Разбиваем города по 2 в ряд
-    for i in range(0, len(buttons), 2):
-        keyboard.append(buttons[i:i + 2])
-    if navigation:
-        keyboard.append(navigation)
+    # Разбиваем кнопки по одной в ряд для лучшей читаемости
+    for button in buttons:
+        keyboard.append([button])
+    
+    # Добавляем кнопки навигации
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"city_prev:{page}"))
+    if end_idx < len(CITIES):
+        nav_buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"city_next:{page}"))
+    if nav_buttons:
+        keyboard.append(nav_buttons)
+    
+    # Добавляем кнопку "Готово"
     keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
+    
     return InlineKeyboardMarkup(keyboard)
 
 def get_events_keyboard(events, page=0, page_size=5, total_count=0, registered_events=None):

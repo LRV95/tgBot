@@ -75,8 +75,13 @@ async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TY
     page = context.user_data.get("city_page", 0)
     if data.startswith("city:"):
         city = data.split(":", 1)[1]
-        context.user_data["pending_city"] = city
-        await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=[city], page=page))
+        # Если город уже выбран, убираем его из выбранных
+        if context.user_data.get("pending_city") == city:
+            context.user_data.pop("pending_city", None)
+            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
+        else:
+            context.user_data["pending_city"] = city
+            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=[city], page=page))
         return GUEST_CITY_SELECTION
     elif data.startswith("city_next:") or data.startswith("city_prev:"):
         try:
@@ -92,6 +97,9 @@ async def handle_city_selection(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
         return GUEST_CITY_SELECTION
     elif data == "done_cities":
+        if not context.user_data.get("pending_city"):
+            await query.answer("Пожалуйста, выберите город перед тем как продолжить")
+            return GUEST_CITY_SELECTION
         await query.edit_message_text("Теперь выберите теги, которые вас интересуют:", reply_markup=get_tag_selection_keyboard())
         return GUEST_TAG_SELECTION
     return GUEST_CITY_SELECTION
@@ -286,19 +294,23 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
     page = context.user_data.get("profile_city_page", 0)
     if data.startswith("city:"):
         city = data.split(":", 1)[1]
-        user_id = query.from_user.id
-        db.update_user_city(user_id, city)
-        try:
-            # Отправляем новое сообщение с обновленной клавиатурой
-            await query.message.reply_text(
-                f"Ваш город успешно обновлен на: {city}",
-                reply_markup=get_profile_menu_keyboard()
-            )
-            # Удаляем старое сообщение с клавиатурой выбора городов
-            await query.message.delete()
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения после выбора города: {e}")
-        return PROFILE_MENU
+        # Если город уже выбран, убираем его из выбранных
+        if context.user_data.get("pending_profile_city") == city:
+            context.user_data.pop("pending_profile_city", None)
+            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
+        else:
+            context.user_data["pending_profile_city"] = city
+            user_id = query.from_user.id
+            db.update_user_city(user_id, city)
+            try:
+                await query.message.reply_text(
+                    f"Ваш город успешно обновлен на: {city}",
+                    reply_markup=get_profile_menu_keyboard()
+                )
+                await query.message.delete()
+            except Exception as e:
+                logger.error(f"Ошибка при обновлении сообщения после выбора города: {e}")
+            return PROFILE_MENU
     elif data.startswith("city_next:") or data.startswith("city_prev:"):
         try:
             page = int(data.split(":", 1)[1])
@@ -309,9 +321,13 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
         else:
             page -= 1
         context.user_data["profile_city_page"] = page
-        await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
+        selected = [context.user_data["pending_profile_city"]] if "pending_profile_city" in context.user_data else []
+        await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
         return PROFILE_CITY_SELECTION
     elif data == "done_cities":
+        if not context.user_data.get("pending_profile_city"):
+            await query.answer("Пожалуйста, выберите город перед тем как продолжить")
+            return PROFILE_CITY_SELECTION
         await query.edit_message_text("Выберите город из списка.")
         return PROFILE_CITY_SELECTION
     return PROFILE_CITY_SELECTION
