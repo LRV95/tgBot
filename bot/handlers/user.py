@@ -211,11 +211,63 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
         return PROFILE_MENU
 
+async def get_profile_info(user_id: int) -> str:
+    """Получает отформатированную информацию о профиле пользователя."""
+    user = db.get_user(user_id)
+    if not user:
+        return "❌ Ошибка: профиль не найден"
+        
+    # Получаем список мероприятий пользователя
+    registered_events = []
+    if user.get("registered_events"):
+        event_ids = [e.strip() for e in user["registered_events"].split(",") if e.strip()]
+        for event_id in event_ids:
+            try:
+                event = db.get_event_by_id(int(event_id))
+                if event:
+                    name = ""
+                    if event.get("tags"):
+                        parts = event["tags"].split(";")
+                        for part in parts:
+                            if "Название:" in part:
+                                name = part.split("Название:")[1].strip()
+                                break
+                    if not name:
+                        name = f"Мероприятие #{event['id']}"
+                    registered_events.append(f"• {escape_markdown_v2(name)} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)")
+            except:
+                continue
+
+    # Форматируем интересы
+    interests = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+    interests_text = "• " + "\n• ".join(escape_markdown_v2(interest) for interest in interests) if interests else "Не указаны"
+    
+    # Формируем сообщение
+    reply = (
+        f"👤 *Профиль волонтера*\n\n"
+        f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
+        f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
+        f"🏆 *Баллы:* {user.get('score', 0)}\n"
+        f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
+        f"🏷️ *Интересы:*\n{interests_text}\n\n"
+    )
+    
+    if registered_events:
+        reply += f"📅 *Зарегистрированные мероприятия:*\n" + "\n".join(registered_events)
+    else:
+        reply += "📅 *Зарегистрированные мероприятия:* Нет активных регистраций"
+        
+    return reply
+
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     new_first_name = update.message.text.strip()
     user_id = update.effective_user.id
     db.update_first_name(user_id, new_first_name)
-    await update.message.reply_text(f"Ваше имя обновлено на: {new_first_name}", reply_markup=get_profile_menu_keyboard())
+    profile_info = await get_profile_info(user_id)
+    await update.message.reply_markdown_v2(
+        f"✅ Ваше имя успешно обновлено\\!\n\n{profile_info}",
+        reply_markup=get_profile_menu_keyboard()
+    )
     return PROFILE_MENU
 
 async def handle_profile_update_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -264,9 +316,10 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
         return PROFILE_TAG_SELECTION
     elif data == "done_tags":
         db.update_user_tags(user_id, ",".join(selected_tags))
+        profile_info = await get_profile_info(user_id)
         try:
-            await query.message.reply_text(
-                "Ваши интересы обновлены!",
+            await query.message.reply_markdown_v2(
+                f"✅ Ваши интересы успешно обновлены\\!\n\n{profile_info}",
                 reply_markup=get_profile_menu_keyboard()
             )
             await query.message.delete()
@@ -337,7 +390,6 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         return MAIN_MENU
     return MAIN_MENU
 
-
 async def handle_profile_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
@@ -353,9 +405,10 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
             context.user_data["pending_profile_city"] = city
             user_id = query.from_user.id
             db.update_user_city(user_id, city)
+            profile_info = await get_profile_info(user_id)
             try:
-                await query.message.reply_text(
-                    f"Ваш город успешно обновлен на: {city}",
+                await query.message.reply_markdown_v2(
+                    f"✅ Ваш город успешно обновлен\\!\n\n{profile_info}",
                     reply_markup=get_profile_menu_keyboard()
                 )
                 await query.message.delete()
