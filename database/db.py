@@ -336,3 +336,23 @@ class Database:
             cursor.execute("SELECT COUNT(*) FROM events")
             count = cursor.fetchone()[0]
             return count
+
+    def get_event_by_id(self, event_id: int):
+        """Получает информацию о мероприятии по его ID."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM events WHERE id = ?", (event_id,))
+            event = cursor.fetchone()
+            if event:
+                return {
+                    "id": event[0],
+                    "project_id": event[1],
+                    "event_date": event[2],
+                    "start_time": event[3],
+                    "city": event[4],
+                    "participants_count": event[5],
+                    "participation_points": event[6],
+                    "creator": event[7],
+                    "tags": event[8]
+                }
+            return None
