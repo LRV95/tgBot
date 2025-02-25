@@ -69,11 +69,11 @@ class Database:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         project_id INTEGER,
                         event_date TEXT,
-                        event_time TEXT,
+                        start_time TEXT,
                         location TEXT DEFAULT '',
                         creator TEXT,
-                        participants_count INTEGER,
-                        participation_points INTEGER,
+                        participants_count INTEGER DEFAULT 0,
+                        participation_points INTEGER DEFAULT 5,
                         tags TEXT,
                         FOREIGN KEY (project_id) REFERENCES projects(id)
                     )
@@ -101,10 +101,11 @@ class Database:
             "project_id": row[1],
             "event_date": row[2],
             "start_time": row[3],
-            "participants_count": row[4],
-            "participation_points": row[5],
-            "creator": row[6],
-            "tags": row[7]
+            "location": row[4],
+            "creator": row[5],
+            "participants_count": row[6],
+            "participation_points": row[7],
+            "tags": row[8]
         }
 
     def get_all_projects(self):
@@ -138,14 +139,14 @@ class Database:
         self.add_project(name, curator, phone_number, email, description, tags)
 
     def add_event_detail(self, project_id, event_date, start_time, participants_count, participation_points, creator,
-                         tags=""):
+                         tags="", location=""):
         with self.connect() as conn:
             cursor = conn.cursor()
             try:
                 cursor.execute('''
-                    INSERT INTO events (project_id, event_date, start_time, participants_count, participation_points, creator, tags)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (project_id, event_date, start_time, participants_count, participation_points, creator, tags))
+                    INSERT INTO events (project_id, event_date, start_time, location, creator, participants_count, participation_points, tags)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (project_id, event_date, start_time, location, creator, participants_count, participation_points, tags))
                 conn.commit()
             except sqlite3.IntegrityError as e:
                 conn.rollback()

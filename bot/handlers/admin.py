@@ -7,6 +7,9 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from bot.states import MAIN_MENU, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV
 from database.db import Database
+import logging
+
+logger = logging.getLogger(__name__)
 
 db = Database()
 
@@ -203,19 +206,40 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
         with open(temp_path, newline="", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                event_date = row.get("Дата")
-                start_time = row.get("Время")
-                creator = row.get("Организатор")
-                if not event_date or not start_time or not creator:
-                    continue
                 name = row.get("Название", "")
+                event_date = row.get("Дата", "")
+                start_time = row.get("Время", "")
                 location = row.get("Локация", "")
+                creator = row.get("Организатор", "")
                 description = row.get("Описание", "")
+                
+                if not name or not event_date or not start_time or not location or not creator:
+                    continue
+                
+                # TODO: Заполнение тегов будет реализовано через AI агента
+                # Теги будут выбираться из списка констант в bot/constants.py
+                # Временно сохраняем базовую информацию о мероприятии
                 tags = f"Название: {name}; Локация: {location}; Описание: {description}"
-                db.add_event_detail(None, event_date, start_time, 0, 5, creator, tags)
-                count += 1
+                
+                # Добавляем мероприятие в базу данных
+                try:
+                    db.add_event_detail(
+                        project_id=None, 
+                        event_date=event_date, 
+                        start_time=start_time, 
+                        participants_count=0, 
+                        participation_points=5, 
+                        creator=creator, 
+                        tags=tags,
+                        location=location
+                    )
+                    count += 1
+                except Exception as e:
+                    logger.error(f"Ошибка при добавлении мероприятия: {e}")
+                    
         os.remove(temp_path)
         await update.message.reply_markdown(f"*✅ CSV файл обработан успешно.* Добавлено мероприятий: _{count}_.")
     except Exception as e:
+        logger.error(f"Ошибка при обработке CSV файла с мероприятиями: {e}")
         await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с мероприятиями.*")
     return MAIN_MENU
