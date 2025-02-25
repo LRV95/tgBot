@@ -33,7 +33,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• /search_projects_name <name> - поиск проектов по названию\n"
             "• /search_events_tag <tag> - поиск мероприятий по тегу\n"
             "• /search_events_project <project name> - поиск мероприятий по проекту\n"
-            "• /load_csv - загрузить CSV с проектами\n"
+            "• /load_projects_csv - загрузить CSV с проектами\n"
             "• /load_events_csv - загрузить CSV с мероприятиями"
         )
     else:
@@ -144,14 +144,14 @@ async def find_users_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_markdown("*🚫 Ошибка при поиске пользователей по email.*")
 
-async def load_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /load_csv."""
+async def load_projects_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /load_projects_csv."""
     user = update.effective_user
     user_record = db.get_user(user.id)
     if not (user_record and user_record.get("role") == "admin"):
         await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
         return MAIN_MENU
-    await update.message.reply_markdown("*📥 Пожалуйста, отправьте CSV файл с данными (расширение .csv).*")
+    await update.message.reply_markdown("*📥 Пожалуйста, отправьте CSV файл с данными о проектах (расширение .csv).*")
     return WAIT_FOR_CSV
 
 async def process_csv_document(update: Update, context: ContextTypes.DEFAULT_TYPE):

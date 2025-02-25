@@ -6,7 +6,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, Conversati
 from config import TOKEN, ADMIN_ID
 from bot.states import MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, REGISTRATION_TAG_SELECTION, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION
 from bot.handlers.common import start, cancel
-from bot.handlers.admin import admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id, find_users_name, find_users_email, load_csv, process_csv_document, load_events_csv, process_events_csv_document
+from bot.handlers.admin import admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id, find_users_name, find_users_email, load_projects_csv, process_csv_document, load_events_csv, process_events_csv_document
 from bot.handlers.user import handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration, handle_registration_tag_selection, handle_profile_menu, handle_contact_update, handle_profile_update_selection, handle_profile_tag_selection, handle_events_callbacks, handle_registration_city_selection, handle_events, handle_profile_city_selection
 
 def admin_required(func):
@@ -53,7 +53,7 @@ class VolunteerBot:
         )
         self.application.add_handler(conv_handler)
         csv_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("load_csv", load_csv)],
+            entry_points=[CommandHandler("load_projects_csv", load_projects_csv)],
             states={WAIT_FOR_CSV: [MessageHandler(filters.Document.FileExtension("csv"), process_csv_document)]},
             fallbacks=[CommandHandler("cancel", cancel)]
         )
