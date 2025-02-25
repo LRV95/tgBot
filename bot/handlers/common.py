@@ -19,6 +19,7 @@ async def start(update: Update, context: CallbackContext):
         db.update_user_role(user_id, "admin")
         keyboard = get_main_menu_keyboard(role="admin")
         await update.message.reply_text("Добро пожаловать, администратор!", reply_markup=keyboard)
+        return MAIN_MENU
     else:
         if user:
             await update.message.reply_text(

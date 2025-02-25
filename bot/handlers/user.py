@@ -5,6 +5,7 @@ from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_M
 from bot.keyboards import get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard, get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard, get_profile_update_keyboard
 from database.db import Database
 from services.ai_service import RecommendationAgent
+from config import ADMIN_ID
 
 db = Database()
 logger = logging.getLogger(__name__)
@@ -13,9 +14,15 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     text = update.message.text
     user_id = update.effective_user.id
     user = db.get_user(user_id)
+    
     if not user:
         await update.message.reply_text("Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию.")
         return await handle_registration(update, context)
+    
+    # Проверяем роль пользователя
+    user_role = user.get("role", "user")
+    
+    # Обработка общих кнопок для всех ролей
     if text == "🏠 Дом Волонтера":
         await update.message.reply_text("Добро пожаловать в домашнюю страницу волонтера!", reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
@@ -24,7 +31,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return AI_CHAT
     elif text == "Мероприятия":
         context.user_data["events_page"] = 0
-        await update.message.reply_text("Список мероприятий:", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text("Список мероприятий:", reply_markup=get_main_menu_keyboard(role=user_role))
         return await handle_events(update, context)
     elif text and "регистрация" in text.lower():
         user = update.effective_user
@@ -34,13 +41,27 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     elif text == "Выход":
         await update.message.reply_text("Вы вышли из меню. Для повторного входа отправьте /start")
         return MAIN_MENU
+    # Если текст не соответствует ни одной из кнопок
     else:
+        # Проверяем, не является ли это командой администратора
+        if user_role == "admin" and text.startswith("/"):
+            # Пропускаем обработку команд администратора, они будут обработаны другими обработчиками
+            return MAIN_MENU
+        
         await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
         return MAIN_MENU
 
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text
     user_id = update.effective_user.id
+    user = db.get_user(user_id)
+    user_role = user.get("role", "user") if user else "user"
+    
+    # Проверяем, не хочет ли пользователь выйти
+    if query.lower() in ["выход", "назад", "вернуться", "меню", "главное меню"]:
+        await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
+        return MAIN_MENU
+        
     agent = RecommendationAgent()
     response = agent.process_query(query, user_id)
     await update.message.reply_text(response)
@@ -48,6 +69,10 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    user_id = update.effective_user.id
+    user = db.get_user(user_id)
+    user_role = user.get("role", "user") if user else "user"
+    
     if text == "Профиль":
         user = db.get_user(update.effective_user.id)
         if not user:
@@ -98,7 +123,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         return PROFILE_MENU
     if text == "Выход":
         reply = f"Возвращаемся в главное меню!"
-        await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
         return MAIN_MENU
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
@@ -109,10 +134,14 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     first_name = user.first_name if user.first_name else "Пользователь"
     user_id = user.id
     
+    # Проверяем, является ли пользователь администратором
+    is_admin = user_id in ADMIN_ID
+    
     # Сразу создаем пользователя в базе данных и начинаем регистрацию
     try:
-        db.save_user(user_id, first_name)
-        logger.info(f"Создан новый пользователь: id={user_id}, first_name={first_name}")
+        role = "admin" if is_admin else "user"
+        db.save_user(user_id, first_name, role=role)
+        logger.info(f"Создан новый пользователь: id={user_id}, first_name={first_name}, role={role}")
     except Exception as e:
         logger.error(f"Ошибка при создании пользователя: {e}")
         await update.message.reply_text("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.")
@@ -174,6 +203,11 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
     data = query.data
     user_id = query.from_user.id
     selected_tags = context.user_data.get("pending_tags", [])
+    
+    # Получаем информацию о пользователе
+    user = db.get_user(user_id)
+    user_role = user.get("role", "user") if user else "user"
+    
     if data.startswith("tag:"):
         tag = data.split(":", 1)[1]
         if tag in selected_tags:
@@ -201,7 +235,7 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
         try:
             await query.message.reply_text(
                 "Регистрация успешно завершена! Добро пожаловать!",
-                reply_markup=get_main_menu_keyboard()
+                reply_markup=get_main_menu_keyboard(role=user_role)
             )
             # Вывод введенных данных
             await query.message.reply_text(
@@ -228,6 +262,10 @@ def escape_markdown_v2(text):
 
 async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
+    user_id = update.effective_user.id
+    user = db.get_user(user_id)
+    user_role = user.get("role", "user") if user else "user"
+    
     if text == "Изменить информацию":
         await update.message.reply_text("Что вы хотите изменить?", reply_markup=get_profile_update_keyboard())
         return PROFILE_UPDATE_SELECTION
@@ -383,9 +421,12 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     query = update.callback_query
     await query.answer()
     data = query.data
+    user_id = update.effective_user.id
+    user = db.get_user(user_id)
+    user_role = user.get("role", "user") if user else "user"
+    
     if data.startswith("register_event:"):
         event_id = data.split(":", 1)[1]
-        user_id = update.effective_user.id
         
         # Проверяем, не зарегистрирован ли уже пользователь
         if db.is_user_registered_for_event(user_id, event_id):
@@ -398,7 +439,6 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
             
-        user = db.get_user(user_id)
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
         events_list.append(event_id)
@@ -413,7 +453,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["events_page"] = page
         return await handle_events(update, context)
     elif data == "back_to_menu":
-        await query.edit_message_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard())
+        await query.edit_message_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
         return MAIN_MENU
     return MAIN_MENU
 

@@ -37,7 +37,7 @@ class VolunteerBot:
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler("start", start)],
             states={
-                MAIN_MENU: [MessageHandler(filters.Regex("(?i)^(🏠 Дом Волонтера|🤖 ИИ Помощник|🤖 ИИ Волонтера|Мероприятия|Регистрация|Выход)$"), handle_main_menu)],
+                MAIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)],
                 AI_CHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)],
                 VOLUNTEER_HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)],
                 GUEST_HOME: [CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu)$")],
