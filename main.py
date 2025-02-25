@@ -4,7 +4,7 @@ import sys
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, CallbackQueryHandler, CallbackContext
 from config import TOKEN, ADMIN_ID
-from bot.states import MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, REGISTRATION, REGISTRATION_TAG_SELECTION, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION
+from bot.states import MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, REGISTRATION_TAG_SELECTION, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION
 from bot.handlers.common import start, cancel
 from bot.handlers.admin import admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id, find_users_name, find_users_email, load_csv, process_csv_document, load_events_csv, process_events_csv_document
 from bot.handlers.user import handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration, handle_registration_tag_selection, handle_profile_menu, handle_contact_update, handle_profile_update_selection, handle_profile_tag_selection, handle_events_callbacks, handle_registration_city_selection, handle_events, handle_profile_city_selection
@@ -41,12 +41,11 @@ class VolunteerBot:
                 AI_CHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)],
                 VOLUNTEER_HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)],
                 GUEST_HOME: [CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu)$")],
-                REGISTRATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration)],
                 REGISTRATION_CITY_SELECTION: [CallbackQueryHandler(handle_registration_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")],
                 REGISTRATION_TAG_SELECTION: [CallbackQueryHandler(handle_registration_tag_selection, pattern="^(tag:.*|done_tags)$")],
                 WAIT_FOR_PROFILE_UPDATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)],
                 PROFILE_UPDATE_SELECTION: [CallbackQueryHandler(handle_profile_update_selection, pattern="^(update:.*)$")],
-                PROFILE_TAG_SELECTION: [CallbackQueryHandler(handle_profile_tag_selection, pattern="^(tag:.*|done)$")],
+                PROFILE_TAG_SELECTION: [CallbackQueryHandler(handle_profile_tag_selection, pattern="^(tag:.*|done_tags)$")],
                 PROFILE_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)],
                 PROFILE_CITY_SELECTION: [CallbackQueryHandler(handle_profile_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")]
             },
