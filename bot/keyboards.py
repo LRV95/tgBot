@@ -87,7 +87,7 @@ def get_events_keyboard(events, page=0, page_size=2, total_count=0, registered_e
             name = f"Мероприятие #{event['id']}"
         
         # Название мероприятия на отдельной кнопке - всегда ведет к просмотру деталей
-        text = f"{name}"
+        text = f"✨ {name}"
         if str(event['id']) in registered_events:
             text += " ✅"
         buttons.append([InlineKeyboardButton(text, callback_data=f"view_event:{event['id']}")])
@@ -143,7 +143,8 @@ def get_events_filter_keyboard(selected_tag=None):
 def get_profile_update_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("Имя", callback_data="update:name"), InlineKeyboardButton("Интересы", callback_data="update:tags")],
-        [InlineKeyboardButton("Город", callback_data="update:city")]
+        [InlineKeyboardButton("Город", callback_data="update:city")],
+        [InlineKeyboardButton("❌ Отмена", callback_data="update:cancel")]
     ])
 
 def get_event_details_keyboard(event_id, is_registered=False):

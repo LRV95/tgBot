@@ -429,6 +429,16 @@ async def handle_profile_update_selection(update: Update, context: ContextTypes.
         elif option == "city":
             await query.edit_message_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
             return PROFILE_CITY_SELECTION
+        elif option == "cancel":
+            # Возвращаемся в меню профиля
+            user = db.get_user(query.from_user.id)
+            profile_info = await get_profile_info(user.get("id"))
+            await query.edit_message_text(
+                f"*Ваш профиль*\n\n{profile_info}",
+                parse_mode="MarkdownV2",
+                reply_markup=None
+            )
+            return PROFILE_MENU
     await query.edit_message_text("Неизвестная команда.")
     return PROFILE_MENU
 
@@ -616,10 +626,17 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
             
+        # Обновляем список мероприятий пользователя
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
         events_list.append(event_id)
         db.update_user_registered_events(user_id, ",".join(events_list))
+        
+        # Увеличиваем счетчик участников мероприятия
+        db.increment_event_participants_count(int(event_id))
+        
+        # Получаем обновленную информацию о мероприятии
+        event = db.get_event_by_id(int(event_id))
         
         # Если мы находимся в детальном просмотре, обновляем информацию
         if context.user_data.get("viewing_event_details"):
@@ -650,6 +667,12 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip() and e != str(event_id)]
         db.update_user_registered_events(user_id, ",".join(events_list))
+        
+        # Уменьшаем счетчик участников мероприятия
+        db.decrement_event_participants_count(int(event_id))
+        
+        # Получаем обновленную информацию о мероприятии
+        event = db.get_event_by_id(int(event_id))
         
         # Если мы находимся в детальном просмотре, обновляем информацию
         if context.user_data.get("viewing_event_details"):

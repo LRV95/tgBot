@@ -398,3 +398,33 @@ class Database:
         registered_events = user.get("registered_events", "")
         events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
         return str(event_id) in events_list
+
+    def increment_event_participants_count(self, event_id: int) -> bool:
+        """Увеличивает счетчик участников мероприятия на 1."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE events SET participants_count = participants_count + 1 WHERE id = ?", 
+                    (event_id,)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Ошибка при увеличении счетчика участников: {e}")
+            return False
+
+    def decrement_event_participants_count(self, event_id: int) -> bool:
+        """Уменьшает счетчик участников мероприятия на 1."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "UPDATE events SET participants_count = MAX(0, participants_count - 1) WHERE id = ?", 
+                    (event_id,)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            logger.error(f"Ошибка при уменьшении счетчика участников: {e}")
+            return False
