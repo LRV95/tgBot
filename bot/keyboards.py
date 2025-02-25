@@ -6,12 +6,12 @@ def get_main_menu_keyboard(role="user"):
         return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
                                     ["/load_excel", "/set_admin", "/set_moderator"],
                                     ["/delete_user", "/find_user_id"],
-                                    ["/find_users_name", "/find_users_email", "/load_csv", "/load_events_csv"]],
+                                    ["/find_users_name", "/find_users_email", "/load_projects_csv", "/load_events_csv"]],
                                    resize_keyboard=True)
     elif role == "moderator":
         return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
                                     ["/delete_user", "/find_user_id"],
-                                    ["/load_csv", "/load_events_csv"]],
+                                    ["/load_projects_csv", "/load_events_csv"]],
                                    resize_keyboard=True)
     else:
         return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера", "Мероприятия"]],

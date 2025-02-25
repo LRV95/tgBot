@@ -213,6 +213,12 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 creator = row.get("Организатор", "")
                 description = row.get("Описание", "")
                 
+                # Получаем стоимость (ценность) мероприятия
+                try:
+                    participation_points = int(row.get("Ценность", "100").strip())
+                except (ValueError, TypeError):
+                    participation_points = 100  # Значение по умолчанию
+                
                 if not name or not event_date or not start_time or not location or not creator:
                     continue
                 
@@ -228,7 +234,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                         event_date=event_date, 
                         start_time=start_time, 
                         participants_count=0, 
-                        participation_points=5, 
+                        participation_points=participation_points, 
                         creator=creator, 
                         tags=tags,
                         location=location

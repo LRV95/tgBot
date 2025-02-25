@@ -52,7 +52,7 @@ def format_profile_message(user):
         f"👤 *Профиль волонтера*\n\n"
         f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
         f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
-        f"🏆 *Баллы:* {score}\n"
+        f"🏆 *Баллы:* {escape_markdown_v2(str(score))}\n"
         f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
         f"🏷️ *Интересы:*\n{interests_text}\n\n"
     )
