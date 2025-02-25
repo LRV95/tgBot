@@ -240,6 +240,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                         city=city
                     )
                     count += 1
+                    await update.message.reply_markdown(f"*✅ Мероприятие {name} добавлено в базу данных.*")
                 except Exception as e:
                     logger.error(f"Ошибка при добавлении мероприятия: {e}")
                     

@@ -10,6 +10,12 @@ from bot.constants import CITIES, TAGS
 logger = logging.getLogger(__name__)
 db = Database()
 
+def escape_markdown_v2(text):
+    """Экранирует специальные символы для Markdown V2."""
+    if not text:
+        return ""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
 
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
@@ -38,6 +44,31 @@ async def start(update: Update, context: CallbackContext):
                 f"Добро пожаловать, {user.get('first_name', 'Пользователь')}!",
                 reply_markup=get_main_menu_keyboard()
             )
+            
+            # Показываем ближайшие мероприятия
+            upcoming_events = db.get_upcoming_events(limit=3)
+            if upcoming_events:
+                events_text = "📅 *Ближайшие мероприятия:*\n\n"
+                for event in upcoming_events:
+                    name = ""
+                    if event.get("tags"):
+                        parts = event["tags"].split(";")
+                        for part in parts:
+                            if "Название:" in part:
+                                name = part.split("Название:")[1].strip()
+                                break
+                    if not name:
+                        name = f"Мероприятие #{event['id']}"
+                    
+                    # Экранируем специальные символы для Markdown V2
+                    name_escaped = escape_markdown_v2(name)
+                    city_escaped = escape_markdown_v2(event['city'])
+                    date_escaped = escape_markdown_v2(event['event_date'])
+                    time_escaped = escape_markdown_v2(event['start_time'])
+                    
+                    events_text += f"• *{name_escaped}*\n  📆 {date_escaped} в {time_escaped}\n  📍 {city_escaped}\n\n"
+                await update.message.reply_markdown_v2(events_text)
+            
             return MAIN_MENU
         else:
             await update.message.reply_text(

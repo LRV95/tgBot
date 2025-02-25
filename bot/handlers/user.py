@@ -1,8 +1,8 @@
 import logging
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION
-from bot.keyboards import get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard, get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard, get_profile_update_keyboard
+from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS
+from bot.keyboards import get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard, get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard, get_profile_update_keyboard, get_event_details_keyboard, get_events_filter_keyboard
 from database.db import Database
 from services.ai_service import RecommendationAgent
 from config import ADMIN_ID
@@ -16,6 +16,70 @@ def escape_markdown_v2(text):
         return ""
     escape_chars = r'_*[]()~`>#+-=|{}.!'
     return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
+
+def format_event_details(event):
+    """Форматирует детальную информацию о мероприятии."""
+    # Получаем название мероприятия из тегов
+    name = ""
+    description = ""
+    if event.get("tags"):
+        parts = event["tags"].split(";")
+        for part in parts:
+            if "Название:" in part:
+                name = part.split("Название:")[1].strip()
+            elif "Описание:" in part:
+                description = part.split("Описание:")[1].strip()
+    
+    if not name:
+        name = f"Мероприятие #{event['id']}"
+    
+    # Форматируем сообщение
+    message = (
+        f"*🎯 {escape_markdown_v2(name)}*\n\n"
+        f"📅 *Дата:* {escape_markdown_v2(event['event_date'])}\n"
+        f"🕒 *Время:* {escape_markdown_v2(event['start_time'])}\n"
+        f"📍 *Город:* {escape_markdown_v2(event['city'])}\n"
+        f"👤 *Организатор:* {escape_markdown_v2(event['creator'])}\n"
+        f"👥 *Количество участников:* {escape_markdown_v2(str(event['participants_count']))}\n"
+        f"🏆 *Баллы за участие:* {escape_markdown_v2(str(event['participation_points']))}\n"
+    )
+    
+    if description:
+        message += f"\n📝 *Описание:*\n{escape_markdown_v2(description)}\n"
+    
+    return message
+
+def create_shareable_event_message(event):
+    """Создает текстовое сообщение о мероприятии для отправки другим пользователям."""
+    # Получаем название мероприятия из тегов
+    name = ""
+    description = ""
+    if event.get("tags"):
+        parts = event["tags"].split(";")
+        for part in parts:
+            if "Название:" in part:
+                name = part.split("Название:")[1].strip()
+            elif "Описание:" in part:
+                description = part.split("Описание:")[1].strip()
+    
+    if not name:
+        name = f"Мероприятие #{event['id']}"
+    
+    # Форматируем сообщение в обычном тексте (без Markdown)
+    message = (
+        f"🎯 {name}\n\n"
+        f"📅 Дата: {event['event_date']}\n"
+        f"🕒 Время: {event['start_time']}\n"
+        f"📍 Город: {event['city']}\n"
+        f"👤 Организатор: {event['creator']}\n"
+        f"👥 Количество участников: {event['participants_count']}\n"
+        f"🏆 Баллы за участие: {event['participation_points']}\n"
+    )
+    
+    if description:
+        message += f"\n📝 Описание:\n{description}\n"
+    
+    return message
 
 def format_profile_message(user):
     """Форматирует сообщение профиля пользователя с информацией о бонусах."""
@@ -137,6 +201,29 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         reply = format_profile_message(user)
         await update.message.reply_markdown_v2(reply, reply_markup=get_profile_menu_keyboard())
         return PROFILE_MENU
+    elif text == "Текущие мероприятия":
+        # Инициализируем страницу мероприятий
+        context.user_data["events_page"] = 0
+        # Сбрасываем фильтр тегов, если он был установлен
+        if "selected_tag" in context.user_data:
+            context.user_data.pop("selected_tag", None)
+        # Вызываем функцию обработки мероприятий
+        return await handle_events(update, context)
+    elif text == "Информация":
+        # Отображаем информацию о боте
+        info_text = (
+            f"*ℹ️ Информация о боте*\n\n"
+            f"Этот бот помогает волонтерам находить и регистрироваться на мероприятия\\.\n\n"
+            f"*Основные функции:*\n"
+            f"• Просмотр списка мероприятий\n"
+            f"• Фильтрация мероприятий по тегам\n"
+            f"• Регистрация на мероприятия\n"
+            f"• Управление профилем\n"
+            f"• Накопление бонусных баллов\n\n"
+            f"Для возврата в главное меню нажмите кнопку \"Выход\"\\."
+        )
+        await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_home_keyboard())
+        return VOLUNTEER_HOME
     elif text == "Бонусы":
         user = db.get_user(update.effective_user.id)
         if not user:
@@ -155,7 +242,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         
         await update.message.reply_markdown_v2(reply, reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
-    if text == "Выход":
+    elif text == "Выход":
         reply = f"Возвращаемся в главное меню!"
         await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
         return MAIN_MENU
@@ -388,21 +475,57 @@ async def handle_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     user_id = update.effective_user.id
     user = db.get_user(user_id)
     page = context.user_data.get("events_page", 0)
-    if user and user.get("city"):
-        city = user["city"]
-        events = db.get_events_by_city(city, limit=5, offset=page * 5)
-        total_events = db.get_events_count_by_city(city)
-        if not events:
-            events = db.get_events(limit=5, offset=page * 5)
+    selected_tag = context.user_data.get("selected_tag", None)
+    
+    # Получаем события в зависимости от выбранного фильтра
+    if selected_tag and selected_tag != "all":
+        if user and user.get("city"):
+            city = user["city"]
+            events = db.get_events_by_tag(selected_tag, limit=2, offset=page * 2)
+            total_events = db.get_events_count_by_tag(selected_tag)
+            if not events:
+                events = db.get_events(limit=2, offset=page * 2)
+                total_events = db.get_events_count()
+        else:
+            events = db.get_events_by_tag(selected_tag, limit=2, offset=page * 2)
+            total_events = db.get_events_count_by_tag(selected_tag)
+    else:
+        if user and user.get("city"):
+            city = user["city"]
+            events = db.get_events_by_city(city, limit=2, offset=page * 2)
+            total_events = db.get_events_count_by_city(city)
+            if not events:
+                events = db.get_events(limit=2, offset=page * 2)
+                total_events = db.get_events_count()
+        else:
+            events = db.get_events(limit=2, offset=page * 2)
             total_events = db.get_events_count()
+    
+    # Проверяем, есть ли у пользователя зарегистрированные мероприятия
+    registered = []
+    if user and "registered_events" in user:
+        registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
+    
+    # Формируем заголовок сообщения в зависимости от выбранного фильтра
+    if selected_tag and selected_tag != "all":
+        message_text = f"Список мероприятий по тегу '{selected_tag}':"
     else:
-        events = db.get_events(limit=5, offset=page * 5)
-        total_events = db.get_events_count()
-    registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()] if user else []
+        message_text = "Список мероприятий:"
+    
+    # Проверяем, есть ли мероприятия для отображения
+    if not events:
+        message_text = "К сожалению, мероприятий не найдено."
+        if query:
+            await query.edit_message_text(message_text)
+        else:
+            await update.message.reply_text(message_text)
+        return GUEST_HOME
+    
+    # Отображаем список мероприятий
     if query:
-        await query.edit_message_text("Список мероприятий:", reply_markup=get_events_keyboard(events, page, 5, total_events, registered_events=registered))
+        await query.edit_message_text(message_text, reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered))
     else:
-        await update.message.reply_text("Список мероприятий:", reply_markup=get_events_keyboard(events, page, 5, total_events, registered_events=registered))
+        await update.message.reply_text(message_text, reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered))
     return GUEST_HOME
 
 async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -413,7 +536,73 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     user = db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
     
-    if data.startswith("register_event:"):
+    if data.startswith("view_event:"):
+        event_id = data.split(":", 1)[1]
+        event = db.get_event_by_id(int(event_id))
+        if not event:
+            await query.answer("Мероприятие не найдено")
+            return GUEST_HOME
+        
+        # Отмечаем, что мы находимся в режиме просмотра деталей мероприятия
+        context.user_data["viewing_event_details"] = True
+        context.user_data["current_event_id"] = event_id
+        
+        # Форматируем информацию о мероприятии
+        event_details = format_event_details(event)
+        
+        # Проверяем, зарегистрирован ли пользователь на это мероприятие
+        is_registered = db.is_user_registered_for_event(user_id, event_id)
+        
+        # Отправляем сообщение с информацией о мероприятии
+        await query.edit_message_text(
+            event_details,
+            reply_markup=get_event_details_keyboard(event_id, is_registered),
+            parse_mode="MarkdownV2"
+        )
+        return EVENT_DETAILS
+    elif data.startswith("share_event:"):
+        event_id = data.split(":", 1)[1]
+        event = db.get_event_by_id(int(event_id))
+        if not event:
+            await query.answer("Мероприятие не найдено")
+            return GUEST_HOME
+        
+        # Создаем сообщение для отправки
+        shareable_message = create_shareable_event_message(event)
+        
+        # Отправляем пользователю сообщение, которым он может поделиться
+        await query.message.reply_text(
+            "📤 Вот сообщение, которым вы можете поделиться с друзьями:"
+        )
+        await query.message.reply_text(
+            shareable_message
+        )
+        
+        # Возвращаемся к просмотру деталей мероприятия
+        return EVENT_DETAILS
+    elif data == "show_filters":
+        # Показываем клавиатуру с фильтрами
+        selected_tag = context.user_data.get("selected_tag", None)
+        await query.edit_message_text(
+            "Выберите тег для фильтрации мероприятий:",
+            reply_markup=get_events_filter_keyboard(selected_tag)
+        )
+        return GUEST_HOME
+    elif data.startswith("filter_tag:"):
+        tag = data.split(":", 1)[1]
+        if tag == "all":
+            # Сбрасываем фильтр
+            context.user_data.pop("selected_tag", None)
+        else:
+            # Устанавливаем фильтр по тегу
+            context.user_data["selected_tag"] = tag
+        
+        # Сбрасываем страницу
+        context.user_data["events_page"] = 0
+        
+        # Возвращаемся к списку мероприятий с примененным фильтром
+        return await handle_events(update, context)
+    elif data.startswith("register_event:"):
         event_id = data.split(":", 1)[1]
         
         # Проверяем, не зарегистрирован ли уже пользователь
@@ -431,6 +620,52 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
         events_list.append(event_id)
         db.update_user_registered_events(user_id, ",".join(events_list))
+        
+        # Если мы находимся в детальном просмотре, обновляем информацию
+        if context.user_data.get("viewing_event_details"):
+            event_details = format_event_details(event)
+            await query.edit_message_text(
+                event_details,
+                reply_markup=get_event_details_keyboard(event_id, True),
+                parse_mode="MarkdownV2"
+            )
+            return EVENT_DETAILS
+        else:
+            return await handle_events(update, context)
+    elif data.startswith("unregister_event:"):
+        event_id = data.split(":", 1)[1]
+        
+        # Проверяем, зарегистрирован ли пользователь
+        if not db.is_user_registered_for_event(user_id, event_id):
+            await query.answer("Вы не зарегистрированы на это мероприятие")
+            return GUEST_HOME
+            
+        # Получаем информацию о мероприятии
+        event = db.get_event_by_id(int(event_id))
+        if not event:
+            await query.answer("Мероприятие не найдено")
+            return GUEST_HOME
+            
+        # Удаляем мероприятие из списка зарегистрированных
+        reg_events = user.get("registered_events", "")
+        events_list = [e.strip() for e in reg_events.split(",") if e.strip() and e != str(event_id)]
+        db.update_user_registered_events(user_id, ",".join(events_list))
+        
+        # Если мы находимся в детальном просмотре, обновляем информацию
+        if context.user_data.get("viewing_event_details"):
+            event_details = format_event_details(event)
+            await query.edit_message_text(
+                event_details,
+                reply_markup=get_event_details_keyboard(event_id, False),
+                parse_mode="MarkdownV2"
+            )
+            return EVENT_DETAILS
+        else:
+            return await handle_events(update, context)
+    elif data == "back_to_events":
+        # Очищаем данные о просмотре деталей мероприятия
+        context.user_data.pop("viewing_event_details", None)
+        context.user_data.pop("current_event_id", None)
         return await handle_events(update, context)
     elif data.startswith("events_next:") or data.startswith("events_prev:"):
         page = context.user_data.get("events_page", 0)
@@ -441,7 +676,14 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["events_page"] = page
         return await handle_events(update, context)
     elif data == "back_to_menu":
-        await query.edit_message_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
+        # Отправляем новое сообщение с клавиатурой главного меню вместо редактирования текущего
+        await query.message.reply_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
+        # Удаляем или скрываем предыдущее сообщение с инлайн-клавиатурой
+        try:
+            await query.message.delete()
+        except Exception:
+            # Если не удалось удалить, просто скрываем клавиатуру
+            await query.edit_message_reply_markup(reply_markup=None)
         return MAIN_MENU
     return MAIN_MENU
 

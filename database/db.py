@@ -354,9 +354,47 @@ class Database:
                     "event_date": event[2],
                     "start_time": event[3],
                     "city": event[4],
-                    "participants_count": event[5],
-                    "participation_points": event[6],
-                    "creator": event[7],
+                    "creator": event[5],
+                    "participants_count": event[6],
+                    "participation_points": event[7],
                     "tags": event[8]
                 }
             return None
+
+    def get_upcoming_events(self, limit=3):
+        """Получает список ближайших мероприятий."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            # Сортируем по дате и времени (предполагается, что формат даты позволяет сортировку)
+            cursor.execute("""
+                SELECT * FROM events 
+                ORDER BY event_date, start_time 
+                LIMIT ?
+            """, (limit,))
+            rows = cursor.fetchall()
+            return [self._format_event(row) for row in rows]
+
+    def get_events_by_tag(self, tag, limit=5, offset=0):
+        """Возвращает список мероприятий по тегу с постраничной выборкой."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM events WHERE tags LIKE ? LIMIT ? OFFSET ?", (f"%{tag}%", limit, offset))
+            rows = cursor.fetchall()
+            return [self._format_event(row) for row in rows]
+
+    def get_events_count_by_tag(self, tag):
+        """Возвращает общее количество мероприятий по тегу."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM events WHERE tags LIKE ?", (f"%{tag}%",))
+            count = cursor.fetchone()[0]
+            return count
+
+    def is_user_registered_for_event(self, user_id: int, event_id: str) -> bool:
+        """Проверяет, зарегистрирован ли пользователь на мероприятие."""
+        user = self.get_user(user_id)
+        if not user:
+            return False
+        registered_events = user.get("registered_events", "")
+        events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
+        return str(event_id) in events_list
