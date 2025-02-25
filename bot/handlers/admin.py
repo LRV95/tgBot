@@ -209,7 +209,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 name = row.get("Название", "")
                 event_date = row.get("Дата", "")
                 start_time = row.get("Время", "")
-                location = row.get("Локация", "")
+                city = row.get("Локация", "")
                 creator = row.get("Организатор", "")
                 description = row.get("Описание", "")
                 
@@ -219,13 +219,13 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 except (ValueError, TypeError):
                     participation_points = 100  # Значение по умолчанию
                 
-                if not name or not event_date or not start_time or not location or not creator:
+                if not name or not event_date or not start_time or not city or not creator:
                     continue
                 
                 # TODO: Заполнение тегов будет реализовано через AI агента
                 # Теги будут выбираться из списка констант в bot/constants.py
                 # Временно сохраняем базовую информацию о мероприятии
-                tags = f"Название: {name}; Локация: {location}; Описание: {description}"
+                tags = f"Название: {name}; Локация: {city}; Описание: {description}"
                 
                 # Добавляем мероприятие в базу данных
                 try:
@@ -237,7 +237,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                         participation_points=participation_points, 
                         creator=creator, 
                         tags=tags,
-                        location=location
+                        city=city
                     )
                     count += 1
                 except Exception as e:
