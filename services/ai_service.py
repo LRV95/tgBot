@@ -162,16 +162,40 @@ class RecommendationAgent(AIAgent):
         rec_text = self.recommend_events(user_id)
         return rec_text.strip()
 
-TAGS = ['small_talk', 'events_recommendation']
+class DialogueAgent(AIAgent):
+    def process_query(self, query: str, conversation_history: list) -> str:
+        system_prompt = {
+            "role": "system",
+            "content": "Ты - эксперт в волонтёрстве, помогаешь пользователям обсуждать вопросы волонтёрства дружелюбно и информативно."
+        }
+        messages = conversation_history.copy() if conversation_history else []
+        if not messages or messages[0].get("role") != "system":
+            messages.insert(0, system_prompt)
+        messages.append({"role": "user", "content": query})
 
+        prompt = {
+            "messages": messages,
+            "temperature": TEMPERATURE,
+            "max_tokens": 300
+        }
+        response = get_gigachat_response(prompt)
+        return response.strip()
+
+
+TAGS = ["all_talk",
+        "events_recommendation",
+        "volunteer_projects",
+        "charity",
+        "volunteer_experience",
+        "small_talk"]
 
 class ContextRouterAgent(AIAgent):
-    """Агент для маршрутизации запросов на различные темы, связанные с волонтёрством."""
+    """Агент для маршрутизации запросов с учётом истории диалога."""
 
     def __init__(self):
         super().__init__()
         self.recommendation_agent = RecommendationAgent()
-        # Добавляем темы, релевантные волонтёрству
+        self.dialogue_agent = DialogueAgent()
         self.allowed_topics = [
             "events_recommendation",
             "volunteer_projects",
@@ -180,13 +204,14 @@ class ContextRouterAgent(AIAgent):
             "small_talk"
         ]
 
-    def process_query(self, query: str, user_id: int) -> str:
+    def process_query(self, query: str, user_id: int, conversation_history: list) -> str:
         lower_query = query.lower()
         prompt = (
-            f"Ты - оркестровый агент, который должен определить тему запроса пользователя, связанного с волонтёрством. \n"
-            f"Пользователь ввёл запрос: {lower_query}\n"
+            f"Ты - оркестровый агент, который определяет тему запроса пользователя, связанного с волонтёрством.\n"
+            f"Пользователь ввёл: {lower_query}\n"
+            f"История диалога: {conversation_history}\n"
             f"Выбери один из следующих тегов: {', '.join(self.allowed_topics)}.\n"
-            "В ответ выдай только один тег без лишнего текста."
+            "Ответ должен содержать только один тег."
         )
         response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
         topic = response.strip().lower()
@@ -194,16 +219,8 @@ class ContextRouterAgent(AIAgent):
         if "events_recommendation" in topic:
             return self.recommendation_agent.recommend_events(user_id)
         elif topic in ["volunteer_projects", "charity", "volunteer_experience", "small_talk"]:
-            return self.default_response(query)
+            return self.dialogue_agent.process_query(query, conversation_history)
         else:
             topics = ", ".join(self.allowed_topics)
             return ("Извините, я не смог понять ваш запрос. "
                     "Пожалуйста, уточните его или поговорите на одну из следующих тем: " + topics)
-
-    def default_response(self, query: str) -> str:
-        prompt = (
-            f"Пользователь задал вопрос: {query}\n"
-            "Ответь дружелюбно и информативно, расскажи что-то интересное о волонтёрстве, используя стиль, подходящий для общения в Telegram."
-        )
-        response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
-        return response.strip()

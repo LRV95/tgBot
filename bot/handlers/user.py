@@ -187,20 +187,22 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text.strip()
-    user_id = update.effective_user.id
-    user = db.get_user(user_id)
-    user_role = user.get("role", "user") if user else "user"
-
-    if query.lower() in ["выход", "назад", "вернуться", "меню", "главное меню", "❌ отмена"]:
-        await update.message.reply_text(
-            "Диалог прерван. Возвращаемся в главное меню.",
-            reply_markup=get_main_menu_keyboard(role=user_role)
-        )
+    if query.lower() in ["выход", "назад", "меню", "❌ отмена"]:
+        context.user_data.pop("conversation_history", None)
+        await update.message.reply_text("Диалог прерван. Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard())
         return MAIN_MENU
 
-    agent = ContextRouterAgent()
-    response = agent.process_query(query, user_id)
-    await update.message.reply_markdown(response)
+    if "conversation_history" not in context.user_data:
+        context.user_data["conversation_history"] = []
+
+    context.user_data["conversation_history"].append({"role": "user", "content": query})
+
+    router_agent = ContextRouterAgent()
+    response = router_agent.process_query(query, update.effective_user.id, context.user_data["conversation_history"])
+
+    context.user_data["conversation_history"].append({"role": "assistant", "content": response})
+
+    await update.message.reply_text(response)
     return AI_CHAT
 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
