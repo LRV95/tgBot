@@ -5,9 +5,11 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class DatabaseError(Exception):
     """Базовый класс для ошибок базы данных."""
     pass
+
 
 class Database:
     def __init__(self, db_name='./database/database.db'):
@@ -79,6 +81,18 @@ class Database:
                     )
                 ''')
 
+                # Создаем таблицу регистрации мероприятий
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS event_registrations (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER,
+                        event_id INTEGER,
+                        registration_code TEXT UNIQUE,
+                        is_verified INTEGER DEFAULT 0,
+                        awarded_points INTEGER DEFAULT 0
+                    )
+                ''')
+
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Ошибка при создании таблиц: {e}")
@@ -146,7 +160,8 @@ class Database:
                 cursor.execute('''
                     INSERT INTO events (project_id, event_date, start_time, city, creator, participants_count, participation_points, tags)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (project_id, event_date, start_time, city, creator, participants_count, participation_points, tags))
+                ''', (
+                project_id, event_date, start_time, city, creator, participants_count, participation_points, tags))
                 conn.commit()
             except sqlite3.IntegrityError as e:
                 conn.rollback()
@@ -156,7 +171,8 @@ class Database:
         """Получает информацию о пользователе."""
         with self.connect() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, first_name, role, score, registered_events, tags, city FROM users WHERE id = ?', (user_id,))
+            cursor.execute('SELECT id, first_name, role, score, registered_events, tags, city FROM users WHERE id = ?',
+                           (user_id,))
             user = cursor.fetchone()
             if user:
                 logger.info(f"Получен пользователь из БД: id={user[0]}, first_name={user[1]}, role={user[2]}")
@@ -302,6 +318,13 @@ class Database:
             cursor.execute('UPDATE users SET tags = ? WHERE id = ?', (tags, user_id))
             conn.commit()
 
+    # Новая функция для обновления счёта пользователя (начисление бонусов)
+    def update_user_score(self, user_id, new_score):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET score = ? WHERE id = ?', (new_score, user_id))
+            conn.commit()
+
     def get_events_by_city(self, city, limit=5, offset=0):
         """Возвращает список мероприятий для указанного города с постраничной выборкой."""
         with self.connect() as conn:
@@ -365,7 +388,6 @@ class Database:
         """Получает список ближайших мероприятий."""
         with self.connect() as conn:
             cursor = conn.cursor()
-            # Сортируем по дате и времени (предполагается, что формат даты позволяет сортировку)
             cursor.execute("""
                 SELECT * FROM events 
                 ORDER BY event_date, start_time 
@@ -390,44 +412,14 @@ class Database:
             count = cursor.fetchone()[0]
             return count
 
-    def is_user_registered_for_event(self, user_id: int, event_id: str) -> bool:
-        """Проверяет, зарегистрирован ли пользователь на мероприятие."""
-        user = self.get_user(user_id)
-        if not user:
-            return False
-        registered_events = user.get("registered_events", "")
-        events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
-        return str(event_id) in events_list
-
-    def increment_event_participants_count(self, event_id: int) -> bool:
-        """Увеличивает счетчик участников мероприятия на 1."""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE events SET participants_count = participants_count + 1 WHERE id = ?", 
-                    (event_id,)
-                )
-                conn.commit()
-                return cursor.rowcount > 0
-        except Exception as e:
-            logger.error(f"Ошибка при увеличении счетчика участников: {e}")
-            return False
-
-    def decrement_event_participants_count(self, event_id: int) -> bool:
-        """Уменьшает счетчик участников мероприятия на 1."""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(
-                    "UPDATE events SET participants_count = MAX(0, participants_count - 1) WHERE id = ?", 
-                    (event_id,)
-                )
-                conn.commit()
-                return cursor.rowcount > 0
-        except Exception as e:
-            logger.error(f"Ошибка при уменьшении счетчика участников: {e}")
-            return False
+    def is_user_registered_for_event_new(self, user_id: int, event_id: int) -> bool:
+        """Проверяет, зарегистрирован ли пользователь на мероприятие в новой таблице регистраций."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM event_registrations WHERE user_id = ? AND event_id = ?
+            ''', (user_id, event_id))
+            return cursor.fetchone() is not None
 
     def get_users_for_event(self, event_id):
         with self.connect() as conn:
@@ -446,4 +438,40 @@ class Database:
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
+            conn.commit()
+
+    # Функции работы с регистрациями
+
+    def add_event_registration(self, user_id, event_id, registration_code):
+        """Добавляет запись о регистрации пользователя на мероприятие с уникальным кодом."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute('''
+                    INSERT INTO event_registrations (user_id, event_id, registration_code)
+                    VALUES (?, ?, ?)
+                ''', (user_id, event_id, registration_code))
+                conn.commit()
+            except sqlite3.IntegrityError as e:
+                conn.rollback()
+                raise e
+
+    def get_registration_by_code(self, registration_code):
+        """Возвращает запись регистрации по коду."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT * FROM event_registrations WHERE registration_code = ?
+            ''', (registration_code,))
+            return cursor.fetchone()
+
+    def verify_registration(self, registration_id):
+        """Устанавливает флаг подтверждения для регистрации."""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE event_registrations
+                SET is_verified = 1
+                WHERE id = ?
+            ''', (registration_id,))
             conn.commit()

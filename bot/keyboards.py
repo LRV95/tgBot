@@ -23,9 +23,12 @@ def get_main_menu_keyboard(role="user"):
         ], resize_keyboard=True)
 
 def get_volunteer_home_keyboard():
-    return ReplyKeyboardMarkup([["Профиль", "Текущие мероприятия"],
-                                ["Бонусы", "Информация", "Выход"]],
-                               resize_keyboard=True)
+    return ReplyKeyboardMarkup([
+        ["Профиль", "Текущие мероприятия"],
+        ["Бонусы", "Ввести код", "Информация"],
+        ["Выход"]
+    ], resize_keyboard=True)
+
 
 def get_profile_menu_keyboard():
     return ReplyKeyboardMarkup([["Изменить информацию", "Выход"]],
