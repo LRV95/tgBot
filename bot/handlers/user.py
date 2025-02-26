@@ -1,8 +1,15 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.states import MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE, PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION, REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS
-from bot.keyboards import get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard, get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard, get_profile_update_keyboard, get_event_details_keyboard, get_events_filter_keyboard
+from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
+                        PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION,
+                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS)
+
+from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
+                           get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
+                           get_profile_update_keyboard, get_event_details_keyboard, get_events_filter_keyboard,
+                           get_ai_chat_keyboard)
+
 from database.db import Database
 from services.ai_service import RecommendationAgent
 from config import ADMIN_ID
@@ -145,7 +152,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text("Добро пожаловать в домашнюю страницу волонтера!", reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
     elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
-        await update.message.reply_text("Напишите ваш вопрос для ИИ:")
+        await update.message.reply_text("Напишите ваш вопрос для ИИ:", reply_markup=get_ai_chat_keyboard())
         return AI_CHAT
     elif text == "Мероприятия":
         context.user_data["events_page"] = 0
@@ -170,16 +177,19 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return MAIN_MENU
 
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.message.text
+    query = update.message.text.strip()
     user_id = update.effective_user.id
     user = db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
-    
-    # Проверяем, не хочет ли пользователь выйти
-    if query.lower() in ["выход", "назад", "вернуться", "меню", "главное меню"]:
-        await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
+
+    # Если пользователь нажал кнопку отмены (или ввёл соответствующий текст)
+    if query.lower() in ["выход", "назад", "вернуться", "меню", "главное меню", "❌ отмена"]:
+        await update.message.reply_text(
+            "Диалог прерван. Возвращаемся в главное меню.",
+            reply_markup=get_main_menu_keyboard(role=user_role)
+        )
         return MAIN_MENU
-        
+
     agent = RecommendationAgent()
     response = agent.process_query(query, user_id)
     await update.message.reply_text(response)

@@ -164,3 +164,6 @@ def get_event_details_keyboard(event_id, is_registered=False):
     keyboard.append([InlineKeyboardButton("🔙 Назад к списку", callback_data="back_to_events")])
     
     return InlineKeyboardMarkup(keyboard)
+
+def get_ai_chat_keyboard():
+    return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
