@@ -202,7 +202,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     context.user_data["conversation_history"].append({"role": "assistant", "content": response})
 
-    await update.message.reply_text(response)
+    await update.message.reply_markdown(response)
     return AI_CHAT
 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

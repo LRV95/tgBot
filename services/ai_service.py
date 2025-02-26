@@ -118,13 +118,14 @@ class RecommendationAgent(AIAgent):
             for row in cursor.fetchall():
                 events.append({
                     "id": row[0],
-                    "name": row[1],
-                    "date": row[2],
-                    "time": row[3],
-                    "count": row[4],
-                    "points": row[5],
-                    "curator": row[6],
-                    "description": row[7]
+                    "project_id": row[1],
+                    "event_date": row[2],
+                    "start_time": row[3],
+                    "city": row[4],
+                    "participants_count": row[5],
+                    "points": row[6],
+                    "creator": row[7],
+                    "tags": row[8]
                 })
         return events
 
@@ -134,7 +135,7 @@ class RecommendationAgent(AIAgent):
         user_events = self.get_user_events(user_id)
         
         all_events_text = "\n".join([
-            f"- {event['name']} (Дата: {event['date']}, Описание: {event['description']})"
+            f"- {event['project_id']} (Дата: {event['event_date']}, Описание: {event['tags']})"
             for event in all_events
         ]) if all_events else "Нет доступных событий."
         
