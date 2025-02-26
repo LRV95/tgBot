@@ -200,7 +200,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     agent = ContextRouterAgent()
     response = agent.process_query(query, user_id)
-    await update.message.reply_text(response)
+    await update.message.reply_markdown(response)
     return AI_CHAT
 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
