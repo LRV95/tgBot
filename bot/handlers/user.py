@@ -3,7 +3,7 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import ContextTypes
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
                         PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION,
-                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS)
+                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU)
 
 from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
@@ -139,42 +139,51 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     text = update.message.text
     user_id = update.effective_user.id
     user = db.get_user(user_id)
-    
+
     if not user:
         await update.message.reply_text("Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию.")
         return await handle_registration(update, context)
-    
-    # Проверяем роль пользователя
+
     user_role = user.get("role", "user")
-    
-    # Обработка общих кнопок для всех ролей
+
+    if text == "Модерация":
+        from bot.handlers.admin import moderation_menu
+        return await moderation_menu(update, context)
+
     if text == "🏠 Дом Волонтера":
-        await update.message.reply_text("Добро пожаловать в домашнюю страницу волонтера!", reply_markup=get_volunteer_home_keyboard())
+        await update.message.reply_text(
+            "Добро пожаловать в домашнюю страницу волонтера!",
+            reply_markup=get_volunteer_home_keyboard()
+        )
         return VOLUNTEER_HOME
     elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
-        await update.message.reply_text("Напишите ваш вопрос для ИИ:", reply_markup=get_ai_chat_keyboard())
+        await update.message.reply_text("Напишите ваш вопрос для ИИ:")
         return AI_CHAT
     elif text == "Мероприятия":
         context.user_data["events_page"] = 0
-        await update.message.reply_text("Список мероприятий:", reply_markup=get_main_menu_keyboard(role=user_role))
+        await update.message.reply_text(
+            "Список мероприятий:",
+            reply_markup=get_main_menu_keyboard(role=user_role)
+        )
         return await handle_events(update, context)
     elif text and "регистрация" in text.lower():
         user = update.effective_user
         first_name = user.first_name if user.first_name else "Пользователь"
-        await update.message.reply_text(f"Вы выбрали регистрацию.\nВаше имя: {first_name}\nДалее выберите ваш город для завершения регистрации.")
+        await update.message.reply_text(
+            f"Вы выбрали регистрацию.\nВаше имя: {first_name}\nДалее выберите ваш город для завершения регистрации."
+        )
         return await handle_registration(update, context)
     elif text == "Выход":
         await update.message.reply_text("Вы вышли из меню. Для повторного входа отправьте /start")
         return MAIN_MENU
-    # Если текст не соответствует ни одной из кнопок
     else:
-        # Проверяем, не является ли это командой администратора
+        # Если текст начинается со слэша и пользователь администратор — оставляем обработку командами
         if user_role == "admin" and text.startswith("/"):
-            # Пропускаем обработку команд администратора, они будут обработаны другими обработчиками
             return MAIN_MENU
-        
+
         await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
         return MAIN_MENU
+
 
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text.strip()
@@ -765,3 +774,21 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
         await query.edit_message_text("Выберите город из списка.")
         return PROFILE_CITY_SELECTION
     return PROFILE_CITY_SELECTION
+
+async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+    if text == "Добавить мероприятия":
+        await update.message.reply_text("Функционал модерирования мероприятий в разработке.")
+    elif text == "Изменить мероприятие":
+        await update.message.reply_text("Функционал модерирования пользователей в разработке.")
+    elif text == "Вернуться в главное меню":
+        from bot.keyboards import get_main_menu_keyboard
+        user_record = db.get_user(update.effective_user.id)
+        role = user_record.get("role") if user_record else "user"
+        await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard(role=role))
+        return MAIN_MENU
+
+    from bot.keyboards import get_moderation_menu_keyboard
+    await update.message.reply_text("Меню модерирования:", reply_markup=get_moderation_menu_keyboard())
+    return MODERATION_MENU
+

@@ -3,19 +3,24 @@ from bot.constants import CITIES, TAGS
 
 def get_main_menu_keyboard(role="user"):
     if role == "admin":
-        return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
-                                    ["/load_excel", "/set_admin", "/set_moderator"],
-                                    ["/delete_user", "/find_user_id"],
-                                    ["/find_users_name", "/find_users_email", "/load_projects_csv", "/load_events_csv"]],
-                                   resize_keyboard=True)
+        return ReplyKeyboardMarkup([
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
+            ["Модерация"],
+            ["/load_excel", "/set_admin", "/set_moderator"],
+            ["/delete_user", "/find_user_id"],
+            ["/find_users_name", "/find_users_email", "/load_projects_csv", "/load_events_csv"]
+        ], resize_keyboard=True)
     elif role == "moderator":
-        return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
-                                    ["/delete_user", "/find_user_id"],
-                                    ["/load_projects_csv", "/load_events_csv"]],
-                                   resize_keyboard=True)
+        return ReplyKeyboardMarkup([
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
+            ["Модерация"],
+            ["/delete_user", "/find_user_id"],
+            ["/load_projects_csv", "/load_events_csv"]
+        ], resize_keyboard=True)
     else:
-        return ReplyKeyboardMarkup([["🏠 Дом Волонтера", "🤖 ИИ Волонтера", "Мероприятия"]],
-                                   resize_keyboard=True)
+        return ReplyKeyboardMarkup([
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера", "Мероприятия"]
+        ], resize_keyboard=True)
 
 def get_volunteer_home_keyboard():
     return ReplyKeyboardMarkup([["Профиль", "Текущие мероприятия"],
@@ -167,3 +172,9 @@ def get_event_details_keyboard(event_id, is_registered=False):
 
 def get_ai_chat_keyboard():
     return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
+
+def get_moderation_menu_keyboard():
+    return ReplyKeyboardMarkup([
+        ["Модерировать мероприятия", "Модерировать пользователей"],
+        ["Вернуться в главное меню"]
+    ], resize_keyboard=True)

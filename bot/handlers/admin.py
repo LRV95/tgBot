@@ -5,7 +5,7 @@ import csv
 import openpyxl
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
-from bot.states import MAIN_MENU, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV
+from bot.states import MAIN_MENU, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV, MODERATION_MENU
 from database.db import Database
 import logging
 
@@ -250,3 +250,31 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
         logger.error(f"Ошибка при обработке CSV файла с мероприятиями: {e}")
         await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с мероприятиями.*")
     return MAIN_MENU
+
+async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_record = db.get_user(user.id)
+    if user_record and user_record.get("role") in ["admin", "moderator"]:
+        from bot.keyboards import get_moderation_menu_keyboard
+        await update.message.reply_text("Меню модерирования:", reply_markup=get_moderation_menu_keyboard())
+        return MODERATION_MENU
+    else:
+        await update.message.reply_text("🚫 У вас недостаточно прав для доступа к модерационному меню.")
+        return MAIN_MENU
+
+async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text
+    if text == "Модерировать мероприятия":
+        await update.message.reply_text("Функционал модерирования мероприятий в разработке.")
+    elif text == "Модерировать пользователей":
+        await update.message.reply_text("Функционал модерирования пользователей в разработке.")
+    elif text == "Вернуться в главное меню":
+        from bot.keyboards import get_main_menu_keyboard
+        user_record = db.get_user(update.effective_user.id)
+        role = user_record.get("role") if user_record else "user"
+        await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard(role=role))
+        return MAIN_MENU
+    # После обработки – снова показываем модерационное меню
+    from bot.keyboards import get_moderation_menu_keyboard
+    await update.message.reply_text("Меню модерирования:", reply_markup=get_moderation_menu_keyboard())
+    return MODERATION_MENU
