@@ -11,7 +11,7 @@ from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboa
                            get_ai_chat_keyboard)
 
 from database.db import Database
-from services.ai_service import RecommendationAgent
+from services.ai_service import ContextRouterAgent
 from config import ADMIN_ID
 
 db = Database()
@@ -191,7 +191,6 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     user = db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
 
-    # Если пользователь нажал кнопку отмены (или ввёл соответствующий текст)
     if query.lower() in ["выход", "назад", "вернуться", "меню", "главное меню", "❌ отмена"]:
         await update.message.reply_text(
             "Диалог прерван. Возвращаемся в главное меню.",
@@ -199,7 +198,7 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return MAIN_MENU
 
-    agent = RecommendationAgent()
+    agent = ContextRouterAgent()
     response = agent.process_query(query, user_id)
     await update.message.reply_text(response)
     return AI_CHAT

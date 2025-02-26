@@ -88,9 +88,6 @@ def get_gigachat_response(prompt):
         logger.error(f"Ошибка при запросе к GigaChat API: {response.status_code} - {response.text}")
         return {"error": f"Ошибка при запросе к GigaChat API: {response.status_code} - {response.text}"}
 
-# Теги для маршрутизации запросов
-TAGS = ['small_talk', 'events_recommendation']
-
 class AIAgent(ABC):
     """Базовый класс для AI агентов."""
 
@@ -162,36 +159,41 @@ class RecommendationAgent(AIAgent):
         return response.strip()
 
     def process_query(self, query: str, user_id: int) -> str:
-        """Обрабатывает запрос и возвращает рекомендации."""
         rec_text = self.recommend_events(user_id)
-        prompt = (
-            f"Оцени следующие рекомендации для пользователя с учетом его предпочтений:\n"
-            f"{rec_text}\n"
-            "Дай финальную оценку и дополнительные рекомендации, если необходимо."
-        )
-        response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
-        return response.strip()
+        return rec_text.strip()
+
+TAGS = ['small_talk', 'events_recommendation']
+
 
 class ContextRouterAgent(AIAgent):
-    """Агент для маршрутизации запросов."""
-    
+    """Агент для маршрутизации запросов на различные темы, связанные с волонтёрством."""
+
     def __init__(self):
         super().__init__()
         self.recommendation_agent = RecommendationAgent()
-        self.allowed_topics = ["Все"]
+        # Добавляем темы, релевантные волонтёрству
+        self.allowed_topics = [
+            "events_recommendation",
+            "volunteer_projects",
+            "charity",
+            "volunteer_experience",
+            "small_talk"
+        ]
 
     def process_query(self, query: str, user_id: int) -> str:
-        """Маршрутизирует запрос к нужному обработчику."""
         lower_query = query.lower()
-        prompt = (f"Ты - оркестровый агент, выбираешь кому делегировать задачу. \n"
-                  f"Пользователь ввёл запрос: {lower_query}\n"
-                  f"Разбери запрос и пойми о чём хочет говорить пользователь, для этого у тебя на выбор есть следующие теги: {TAGS} \n"
-                  f"В ответ я должен получить только 1 тег из предложенных, ничего кроме этого. \n")
+        prompt = (
+            f"Ты - оркестровый агент, который должен определить тему запроса пользователя, связанного с волонтёрством. \n"
+            f"Пользователь ввёл запрос: {lower_query}\n"
+            f"Выбери один из следующих тегов: {', '.join(self.allowed_topics)}.\n"
+            "В ответ выдай только один тег без лишнего текста."
+        )
         response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
+        topic = response.strip().lower()
 
-        if "events_recommendation" in response:
+        if "events_recommendation" in topic:
             return self.recommendation_agent.recommend_events(user_id)
-        elif "small_talk" in response:
+        elif topic in ["volunteer_projects", "charity", "volunteer_experience", "small_talk"]:
             return self.default_response(query)
         else:
             topics = ", ".join(self.allowed_topics)
@@ -199,8 +201,9 @@ class ContextRouterAgent(AIAgent):
                     "Пожалуйста, уточните его или поговорите на одну из следующих тем: " + topics)
 
     def default_response(self, query: str) -> str:
-        """Обрабатывает обычный диалог."""
-        prompt = (f"Пользователь задал вопрос: {query}\n"
-                  "Ответь дружелюбно и информативно, используя стиль, подходящий для общения в Telegram.")
+        prompt = (
+            f"Пользователь задал вопрос: {query}\n"
+            "Ответь дружелюбно и информативно, расскажи что-то интересное о волонтёрстве, используя стиль, подходящий для общения в Telegram."
+        )
         response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
         return response.strip()
