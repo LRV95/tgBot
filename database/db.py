@@ -428,3 +428,22 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка при уменьшении счетчика участников: {e}")
             return False
+
+    def get_users_for_event(self, event_id):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, first_name, registered_events FROM users")
+            users = []
+            for row in cursor.fetchall():
+                user_id, first_name, registered_events = row
+                if registered_events:
+                    events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
+                    if str(event_id) in events_list:
+                        users.append({"id": user_id, "first_name": first_name})
+            return users
+
+    def delete_event(self, event_id):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
+            conn.commit()

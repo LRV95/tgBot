@@ -175,6 +175,7 @@ def get_ai_chat_keyboard():
 
 def get_moderation_menu_keyboard():
     return ReplyKeyboardMarkup([
-        ["Модерировать мероприятия", "Модерировать пользователей"],
+        ["Создать мероприятие", "Просмотреть мероприятия"],
+        ["Удалить мероприятие"],
         ["Вернуться в главное меню"]
     ], resize_keyboard=True)
