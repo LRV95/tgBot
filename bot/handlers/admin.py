@@ -9,7 +9,7 @@ import logging
 from database.db import Database
 from bot.states import (MAIN_MENU, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY, MODERATOR_EVENT_DESCRIPTION,
-                        MODERATOR_EVENT_CONFIRMATION, MAIN_MENU)
+                        MODERATOR_EVENT_CONFIRMATION, MAIN_MENU, MODERATOR_SEARCH_REGISTERED_USERS)
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +273,10 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         return await moderator_view_events(update, context)
     elif text == "Удалить мероприятие":
         return await moderator_delete_event(update, context)
+    elif text == "Найти пользователей":
+        return await moderator_search_event_users(update, context)
+    elif text == "Список мероприятий":
+        return await moderator_list_all_events(update, context)
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
         user_record = db.get_user(update.effective_user.id)
@@ -371,7 +375,7 @@ async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TY
     events = [event for event in db.get_all_events() if event.get("creator") == creator_str]
     if not events:
         await update.message.reply_text("У вас нет созданных мероприятий.")
-        return MAIN_MENU
+        return MODERATION_MENU
     keyboard = []
     for event in events:
         # Из тегов извлекаем название мероприятия
@@ -380,7 +384,7 @@ async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TY
         keyboard.append([InlineKeyboardButton(button_text, callback_data=f"view_event_users:{event['id']}")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите мероприятие для просмотра зарегистрированных пользователей:", reply_markup=reply_markup)
-    return MAIN_MENU
+    return MODERATION_MENU
 
 async def moderator_handle_view_event_users_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает нажатие кнопки просмотра зарегистрированных пользователей."""
@@ -431,3 +435,48 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
     else:
         await query.edit_message_text("🚫 Это мероприятие не принадлежит вам.")
     return MAIN_MENU
+
+async def moderator_handle_search_event_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    event_id_text = update.message.text.strip()
+    try:
+        event_id = int(event_id_text)
+    except ValueError:
+        await update.message.reply_text("Неверный формат ID мероприятия. Введите числовое значение.")
+        return MODERATOR_SEARCH_REGISTERED_USERS
+
+    users = db.get_users_for_event(event_id)
+    if not users:
+        await update.message.reply_text("На данном мероприятии нет зарегистрированных пользователей.")
+    else:
+        message = "Зарегистрированные пользователи:\n"
+        for u in users:
+            message += f"ID: {u['id']}, Имя: {u['first_name']}\n"
+        await update.message.reply_text(message)
+    return MODERATION_MENU
+
+async def moderator_search_event_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Введите ID мероприятия для поиска зарегистрированных пользователей:")
+    return MODERATOR_SEARCH_REGISTERED_USERS
+
+async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    events = db.get_all_events()
+    if not events:
+        await update.message.reply_text("Нет доступных мероприятий.")
+        return MODERATION_MENU
+
+    message_lines = []
+    for event in events:
+        name = ""
+        if event.get("tags"):
+            parts = event["tags"].split(";")
+            for part in parts:
+                if "Название:" in part:
+                    name = part.split("Название:")[1].strip()
+                    break
+        if not name:
+            name = f"Мероприятие #{event['id']}"
+        message_lines.append(f"{event['id']}: {name}")
+
+    message_text = "\n".join(message_lines)
+    await update.message.reply_text(message_text)
+    return MODERATION_MENU

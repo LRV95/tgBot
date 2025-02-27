@@ -3,7 +3,8 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import ContextTypes
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
                         PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION,
-                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU)
+                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU,
+                        REDEEM_CODE)
 
 from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
@@ -249,11 +250,9 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         if not user:
             await update.message.reply_text("❌ Ошибка: профиль не найден")
             return MAIN_MENU
-            
-        # Получаем количество баллов пользователя
+
         score = user.get("score", 0)
-        
-        # Формируем сообщение о бонусах
+
         reply = (
             f"🏆 *Ваши бонусы*\n\n"
             f"Текущее количество баллов: *{escape_markdown_v2(str(score))}*\n\n"
@@ -262,6 +261,9 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         
         await update.message.reply_markdown_v2(reply, reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
+    elif text == "Ввести код":
+        await update.message.reply_text("Пожалуйста, введите код, который вам выдал модератор:")
+        return REDEEM_CODE
     elif text == "Выход":
         reply = f"Возвращаемся в главное меню!"
         await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
@@ -632,43 +634,31 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         
         # Возвращаемся к списку мероприятий с примененным фильтром
         return await handle_events(update, context)
+
     elif data.startswith("register_event:"):
         event_id = data.split(":", 1)[1]
-        
-        # Проверяем, не зарегистрирован ли уже пользователь
+
         if db.is_user_registered_for_event(user_id, event_id):
             await query.answer("Вы уже зарегистрированы на это мероприятие")
             return GUEST_HOME
-            
-        # Получаем информацию о мероприятии
+
         event = db.get_event_by_id(int(event_id))
         if not event:
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
-            
-        # Обновляем список мероприятий пользователя
+
+        import random, string
+        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
-        events_list.append(event_id)
+        events_list.append(f"{event_id}:{code}")
         db.update_user_registered_events(user_id, ",".join(events_list))
-        
-        # Увеличиваем счетчик участников мероприятия
+
         db.increment_event_participants_count(int(event_id))
-        
-        # Получаем обновленную информацию о мероприятии
-        event = db.get_event_by_id(int(event_id))
-        
-        # Если мы находимся в детальном просмотре, обновляем информацию
-        if context.user_data.get("viewing_event_details"):
-            event_details = format_event_details(event)
-            await query.edit_message_text(
-                event_details,
-                reply_markup=get_event_details_keyboard(event_id, True),
-                parse_mode="MarkdownV2"
-            )
-            return EVENT_DETAILS
-        else:
-            return await handle_events(update, context)
+
+        # Уведомляем пользователя о коде регистрации
+        await query.answer(f"Вы успешно зарегистрированы. Ваш код: {code}")
+
     elif data.startswith("unregister_event:"):
         event_id = data.split(":", 1)[1]
         
@@ -793,3 +783,55 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
     await update.message.reply_text("Меню модерирования:", reply_markup=get_moderation_menu_keyboard())
     return MODERATION_MENU
 
+
+async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.effective_user.id
+    entered_code = update.message.text.strip().upper()
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text("Ошибка: профиль не найден.")
+        return VOLUNTEER_HOME
+
+    reg_str = user.get("registered_events", "")
+    registrations = [e.strip() for e in reg_str.split(",") if e.strip()]
+    found = False
+    new_registrations = []
+    awarded_points = 0
+    messages = []
+
+    for reg in registrations:
+        parts = reg.split(":")
+        if len(parts) >= 2:
+            event_id, code = parts[0], parts[1]
+            redeemed = (len(parts) == 3 and parts[2] == "redeemed")
+            if code.upper() == entered_code and not redeemed:
+                event = db.get_event_by_id(int(event_id))
+                if event:
+                    points = event.get("participation_points", 5)
+                    awarded_points += int(points)
+                    messages.append(f"За мероприятие {event_id} начислено {points} баллов.")
+                    # Помечаем эту регистрацию как использованную
+                    new_registrations.append(f"{event_id}:{code}:redeemed")
+                    found = True
+                else:
+                    new_registrations.append(reg)
+            else:
+                new_registrations.append(reg)
+        else:
+            new_registrations.append(reg)
+
+    if not found:
+        await update.message.reply_text("Код не найден или уже использован.")
+        return VOLUNTEER_HOME
+
+    db.update_user_registered_events(user_id, ",".join(new_registrations))
+
+    new_score = user.get("score", 0) + awarded_points
+    with db.connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET score = ? WHERE id = ?", (new_score, user_id))
+        conn.commit()
+
+    message_text = "\n".join(messages) + f"\nВаш новый баланс: {new_score} баллов."
+    await update.message.reply_text(message_text)
+    return VOLUNTEER_HOME
