@@ -158,7 +158,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return VOLUNTEER_HOME
     elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
-        await update.message.reply_text("Напишите ваш вопрос для ИИ:")
+        await update.message.reply_text("Напишите ваш вопрос для ИИ:", reply_markup=get_ai_chat_keyboard())
         return AI_CHAT
     elif text == "Мероприятия":
         context.user_data["events_page"] = 0
@@ -634,8 +634,8 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         
         # Возвращаемся к списку мероприятий с примененным фильтром
         return await handle_events(update, context)
-
     elif data.startswith("register_event:"):
+
         event_id = data.split(":", 1)[1]
 
         if db.is_user_registered_for_event(user_id, event_id):
@@ -647,17 +647,23 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
 
-        import random, string
-        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=5))
+        code = "Не указан"
+        if event.get("tags"):
+            parts = event["tags"].split(";")
+            for part in parts:
+                if "Код:" in part:
+                    code = part.split("Код:")[1].strip()
+                    break
+
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip()]
-        events_list.append(f"{event_id}:{code}")
+        events_list.append(f"{event_id}")
         db.update_user_registered_events(user_id, ",".join(events_list))
 
         db.increment_event_participants_count(int(event_id))
 
-        # Уведомляем пользователя о коде регистрации
-        await query.answer(f"Вы успешно зарегистрированы. Ваш код: {code}")
+        await query.answer(f"Вы успешно зарегистрированы. Код мероприятия: {code}")
+
 
     elif data.startswith("unregister_event:"):
         event_id = data.split(":", 1)[1]
@@ -793,6 +799,7 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
         return VOLUNTEER_HOME
 
     reg_str = user.get("registered_events", "")
+    # Теперь регистрации хранятся как "event_id" или "event_id:redeemed"
     registrations = [e.strip() for e in reg_str.split(",") if e.strip()]
     found = False
     new_registrations = []
@@ -801,17 +808,25 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
 
     for reg in registrations:
         parts = reg.split(":")
-        if len(parts) >= 2:
-            event_id, code = parts[0], parts[1]
-            redeemed = (len(parts) == 3 and parts[2] == "redeemed")
-            if code.upper() == entered_code and not redeemed:
-                event = db.get_event_by_id(int(event_id))
-                if event:
-                    points = event.get("participation_points", 5)
-                    awarded_points += int(points)
+        event_id = parts[0]
+        redeemed = (len(parts) > 1 and parts[1] == "redeemed")
+        if not redeemed:
+            event = db.get_event_by_id(int(event_id))
+            if event:
+                # Извлекаем код мероприятия из поля tags
+                code_from_event = ""
+                if event.get("tags"):
+                    for part in event["tags"].split(";"):
+                        if "Код:" in part:
+                            code_from_event = part.split("Код:")[1].strip().upper()
+                            break
+                # Если введённый код совпадает с кодом мероприятия
+                if code_from_event == entered_code:
+                    points = event.get("participants_count", 5)
+                    awarded_points += points
                     messages.append(f"За мероприятие {event_id} начислено {points} баллов.")
-                    # Помечаем эту регистрацию как использованную
-                    new_registrations.append(f"{event_id}:{code}:redeemed")
+                    # Помечаем регистрацию как использованную
+                    new_registrations.append(f"{event_id}:redeemed")
                     found = True
                 else:
                     new_registrations.append(reg)
@@ -821,11 +836,12 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
             new_registrations.append(reg)
 
     if not found:
-        await update.message.reply_text("Код не найден или уже использован.")
+        await update.message.reply_text("Код не найден или уже использован для всех ваших мероприятий.")
         return VOLUNTEER_HOME
 
     db.update_user_registered_events(user_id, ",".join(new_registrations))
 
+    # Начисляем баллы пользователю
     new_score = user.get("score", 0) + awarded_points
     with db.connect() as conn:
         cursor = conn.cursor()

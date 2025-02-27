@@ -9,7 +9,7 @@ import logging
 from database.db import Database
 from bot.states import (MAIN_MENU, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY, MODERATOR_EVENT_DESCRIPTION,
-                        MODERATOR_EVENT_CONFIRMATION, MAIN_MENU, MODERATOR_SEARCH_REGISTERED_USERS)
+                        MODERATOR_EVENT_CONFIRMATION, MAIN_MENU, MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE)
 
 logger = logging.getLogger(__name__)
 
@@ -322,16 +322,23 @@ async def moderator_handle_event_city(update: Update, context: ContextTypes.DEFA
 
 async def moderator_handle_event_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_description"] = update.message.text.strip()
+    await update.message.reply_text("Введите код для мероприятия (один для всех пользователей):")
+    return MODERATOR_EVENT_CODE
+
+async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data["event_code"] = update.message.text.strip()
     summary = (
         f"Название: {context.user_data['event_name']}\n"
         f"Дата: {context.user_data['event_date']}\n"
         f"Время: {context.user_data['event_time']}\n"
         f"Город: {context.user_data['event_city']}\n"
-        f"Описание: {context.user_data['event_description']}\n\n"
+        f"Описание: {context.user_data['event_description']}\n"
+        f"Код: {context.user_data['event_code']}\n\n"
         "Подтверждаете создание мероприятия? (Да/Нет)"
     )
     await update.message.reply_text(summary)
     return MODERATOR_EVENT_CONFIRMATION
+
 
 async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     response = update.message.text.strip().lower()
@@ -344,9 +351,10 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
     event_time = context.user_data.get("event_time")
     event_city = context.user_data.get("event_city")
     event_description = context.user_data.get("event_description")
-    # Сохраняем идентификатор модератора в поле creator
+    event_code = context.user_data.get("event_code")
     creator = f"moderator:{user.id}"
-    tags = f"Название: {event_name}; Описание: {event_description}"
+    # Включаем код в строку тегов
+    tags = f"Название: {event_name}; Код: {event_code}; Описание: {event_description}"
     try:
         db.add_event_detail(
             project_id=None,
@@ -363,7 +371,7 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Ошибка при создании мероприятия: {e}")
         await update.message.reply_text(f"Ошибка при создании мероприятия: {e}")
     # Очищаем временные данные
-    for key in ["event_name", "event_date", "event_time", "event_city", "event_description"]:
+    for key in ["event_name", "event_date", "event_time", "event_city", "event_description", "event_code"]:
         context.user_data.pop(key, None)
     return MODERATION_MENU
 
@@ -399,7 +407,7 @@ async def moderator_handle_view_event_users_callback(update: Update, context: Co
         for u in users:
             message += f"ID: {u['id']}, Имя: {u['first_name']}\n"
         await query.edit_message_text(message)
-    return MAIN_MENU
+    return MODERATION_MENU
 
 # Удаление мероприятия модератором
 async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -409,7 +417,7 @@ async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_T
     events = [event for event in db.get_all_events() if event.get("creator") == creator_str]
     if not events:
         await update.message.reply_text("У вас нет созданных мероприятий для удаления.")
-        return MAIN_MENU
+        return MODERATION_MENU
     keyboard = []
     for event in events:
         name = event.get("tags", "").split(";")[0].replace("Название:", "").strip()
@@ -417,7 +425,7 @@ async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_T
         keyboard.append([InlineKeyboardButton(button_text, callback_data=f"delete_event:{event['id']}")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     await update.message.reply_text("Выберите мероприятие для удаления:", reply_markup=reply_markup)
-    return MAIN_MENU
+    return MODERATION_MENU
 
 async def moderator_handle_delete_event_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает нажатие кнопки удаления мероприятия."""
@@ -434,7 +442,7 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
             await query.edit_message_text(f"Ошибка при удалении мероприятия: {e}")
     else:
         await query.edit_message_text("🚫 Это мероприятие не принадлежит вам.")
-    return MAIN_MENU
+    return MODERATION_MENU
 
 async def moderator_handle_search_event_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     event_id_text = update.message.text.strip()
@@ -444,14 +452,39 @@ async def moderator_handle_search_event_users(update: Update, context: ContextTy
         await update.message.reply_text("Неверный формат ID мероприятия. Введите числовое значение.")
         return MODERATOR_SEARCH_REGISTERED_USERS
 
+    # Получаем информацию о мероприятии по его ID
+    event = db.get_event_by_id(event_id)
+    if not event:
+        await update.message.reply_text("Мероприятие не найдено.")
+        return MODERATION_MENU
+
+    # Извлекаем название и код мероприятия из поля tags
+    name = ""
+    code = ""
+    if event.get("tags"):
+        parts = event["tags"].split(";")
+        for part in parts:
+            if "Название:" in part:
+                name = part.split("Название:")[1].strip()
+            elif "Код:" in part:
+                code = part.split("Код:")[1].strip()
+    if not name:
+        name = f"Мероприятие #{event['id']}"
+
+    # Формируем заголовок с названием и кодом мероприятия
+    message = f"Мероприятие: {name}"
+    if code:
+        message += f" (Код: {code})"
+    message += "\n\nЗарегистрированные пользователи:\n"
+
+    # Получаем пользователей, зарегистрированных на мероприятие
     users = db.get_users_for_event(event_id)
     if not users:
-        await update.message.reply_text("На данном мероприятии нет зарегистрированных пользователей.")
+        message += "Нет зарегистрированных пользователей."
     else:
-        message = "Зарегистрированные пользователи:\n"
         for u in users:
             message += f"ID: {u['id']}, Имя: {u['first_name']}\n"
-        await update.message.reply_text(message)
+    await update.message.reply_text(message)
     return MODERATION_MENU
 
 async def moderator_search_event_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -466,16 +499,23 @@ async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAUL
 
     message_lines = []
     for event in events:
+        # Извлекаем название мероприятия из поля tags
         name = ""
+        code = ""
         if event.get("tags"):
             parts = event["tags"].split(";")
             for part in parts:
                 if "Название:" in part:
                     name = part.split("Название:")[1].strip()
-                    break
+                elif "Код:" in part:
+                    code = part.split("Код:")[1].strip()
         if not name:
             name = f"Мероприятие #{event['id']}"
-        message_lines.append(f"{event['id']}: {name}")
+
+        if code:
+            message_lines.append(f"{event['id']}: {name} (Код: {code})")
+        else:
+            message_lines.append(f"{event['id']}: {name}")
 
     message_text = "\n".join(message_lines)
     await update.message.reply_text(message_text)

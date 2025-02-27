@@ -12,7 +12,7 @@ from bot.states import (MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_
                         PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY,
                         MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
-                        MODERATOR_SEARCH_REGISTERED_USERS)
+                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE)
 
 from bot.handlers.admin import (admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name, find_users_email, load_projects_csv, process_csv_document,
@@ -20,7 +20,8 @@ from bot.handlers.admin import (admin_command, load_excel, set_admin, set_modera
                                 handle_moderation_menu_selection, moderator_create_event_start, moderator_handle_event_name,
                                 moderator_handle_event_date, moderator_handle_event_time, moderator_handle_event_city,
                                 moderator_handle_event_description, moderator_confirm_event, moderator_view_events,
-                                moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users)
+                                moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users,
+                                moderator_handle_event_code)
 
 from bot.handlers.user import (handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
@@ -78,6 +79,8 @@ class VolunteerBot:
                 MODERATOR_SEARCH_REGISTERED_USERS: [MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_search_event_users)],
                 MODERATOR_EVENT_DESCRIPTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)],
                 MODERATOR_EVENT_CONFIRMATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_confirm_event)],
+                MODERATOR_EVENT_CODE: [MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_code)],
+
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
