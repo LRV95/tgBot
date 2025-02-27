@@ -182,22 +182,143 @@ class DialogueAgent(AIAgent):
         response = get_gigachat_response(prompt)
         return response.strip()
 
+class EventInfoAgent(AIAgent):
+    def process_query(self, query: str, user_id: int) -> str:
+        all_events = self.db.get_all_events() #TODO: Надо придумать как извлекать не все проекты.
+        if all_events:
+            events_summary = "\n".join([
+                f"{event['id']}: {self._extract_event_name(event)} (Дата: {event['event_date']}, Город: {event['city']})"
+                for event in all_events
+            ])
+        else:
+            events_summary = "Нет доступных мероприятий."
+
+        # Формируем промпт для GigaChat с передачей контекста о мероприятиях
+        prompt = (
+            f"У нас имеется следующая информация о мероприятиях:\n{events_summary}\n\n"
+            f"Пользователь задал вопрос о событии: \"{query}\".\n"
+            "Определи название мероприятия, дату, город, краткое описание и название связанного проекта (если имеется) "
+            "на основе информации о мероприятиях выше.\n"
+            "Ответь в следующем формате:\n"
+            "Название мероприятия: <...>\n"
+            "Дата: <...>\n"
+            "Город: <...>\n"
+            "Описание: <...>\n"
+            "Название проекта: <...>\n"
+            "Если какая-либо информация недоступна, укажи 'Неизвестно'."
+        )
+        gigachat_response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
+
+        fields = ["Название мероприятия", "Дата", "Город", "Описание", "Название проекта"]
+        extracted = {}
+        for field in fields:
+            try:
+                start = gigachat_response.find(field + ":")
+                if start != -1:
+                    substring = gigachat_response[start + len(field) + 1:]
+                    end = substring.find("\n")
+                    value = substring[:end].strip() if end != -1 else substring.strip()
+                    extracted[field] = value if value else "Неизвестно"
+                else:
+                    extracted[field] = "Неизвестно"
+            except Exception:
+                extracted[field] = "Неизвестно"
+
+        event_name = extracted.get("Название мероприятия", "Неизвестно")
+        if event_name == "Неизвестно":
+            return "Не удалось определить название мероприятия по вашему запросу. Попробуйте переформулировать вопрос."
+
+        events = self.db.search_events_by_tag(event_name)
+
+        if not events:
+            events = self.db.search_events_by_tag(query)
+
+        if not events:
+            return f"Мероприятие с названием '{event_name}' не найдено в базе данных."
+        elif len(events) > 1:
+            events_list_text = "\n".join([
+                f"{event['id']}: {self._extract_event_name(event)} (Дата: {event['event_date']}, Город: {event['city']})"
+                for event in events
+            ])
+            return (
+                f"Найдено несколько мероприятий, похожих на '{event_name}':\n{events_list_text}\n"
+                "Пожалуйста, уточните, о каком из этих мероприятий вы хотите узнать подробнее."
+            )
+
+        event = events[0]
+        extracted["Дата"] = event.get("event_date", extracted["Дата"])
+        extracted["Город"] = event.get("city", extracted["Город"])
+        if event.get("tags"):
+            parts = event["tags"].split(";")
+            for part in parts:
+                if "Описание:" in part:
+                    extracted["Описание"] = part.split("Описание:")[1].strip()
+                    break
+
+        project_info = ""
+        if event.get("project_id"):
+            project_id = event.get("project_id")
+            projects = self.db.get_all_projects()
+            project = next((p for p in projects if p["id"] == project_id), None)
+            if project:
+                project_info = (
+                    f"\nИнформация о проекте:\n"
+                    f"Название: {project.get('name', 'Неизвестно')}\n"
+                    f"Ответственный: {project.get('curator', 'Неизвестно')}\n"
+                    f"Описание: {project.get('description', 'Неизвестно')}"
+                )
+            else:
+                project_info = "\nИнформация о проекте: Неизвестно"
+        else:
+            project_info = "\nИнформация о проекте: Неизвестно"
+
+        response_text = (
+            f"Ты помощник волонтёра. Обработай данные и выдай пользователю информацию в дружелюбном формате. Используй emoji."
+            f"Все данные должны быть указаны в твоём ответе."
+            f"Расскажи пользователю как подготовиться и с какими трудностями ему предстоит столкнуться, но в лёгком "
+            f"формате. Вот описание:"
+            f"{extracted["Описание"]}"
+            "Информация о мероприятии:\n"
+            f"Название мероприятия: {extracted.get('Название мероприятия', 'Неизвестно')}\n"
+            f"Дата: {extracted.get('Дата', 'Неизвестно')}\n"
+            f"Город: {extracted.get('Город', 'Неизвестно')}\n"
+            f"Описание: {extracted.get('Описание', 'Неизвестно')}\n"
+            f"Название проекта: {extracted.get('Название проекта', 'Неизвестно')}"
+            f"{project_info}"
+        )
+
+        final_response = get_gigachat_response({"messages": [{"role": "user", "content": response_text}]})
+        return final_response
+
+    def _extract_event_name(self, event: dict) -> str:
+        """Извлекает название мероприятия из поля tags или возвращает стандартное название."""
+        name = ""
+        if event.get("tags"):
+            parts = event["tags"].split(";")
+            for part in parts:
+                if "Название:" in part:
+                    name = part.split("Название:")[1].strip()
+                    break
+        if not name:
+            name = f"Мероприятие #{event.get('id')}"
+        return name
 
 TAGS = ["all_talk",
         "events_recommendation",
         "volunteer_projects",
         "charity",
         "volunteer_experience",
-        "small_talk"]
+        "small_talk",
+        "project_info"]
 
 class ContextRouterAgent(AIAgent):
-    """Агент для маршрутизации запросов с учётом истории диалога."""
-
     def __init__(self):
         super().__init__()
         self.recommendation_agent = RecommendationAgent()
         self.dialogue_agent = DialogueAgent()
+        self.event_info_agent = EventInfoAgent()
         self.allowed_topics = [
+            "event_info",
             "events_recommendation",
             "volunteer_projects",
             "charity",
@@ -208,7 +329,7 @@ class ContextRouterAgent(AIAgent):
     def process_query(self, query: str, user_id: int, conversation_history: list) -> str:
         lower_query = query.lower()
         prompt = (
-            f"Ты - оркестровый агент, который определяет тему запроса пользователя, связанного с волонтёрством.\n"
+            "Ты - оркестровый агент, который определяет тему запроса пользователя, связанного с волонтёрством.\n"
             f"Пользователь ввёл: {lower_query}\n"
             f"История диалога: {conversation_history}\n"
             f"Выбери один из следующих тегов: {', '.join(self.allowed_topics)}.\n"
@@ -217,7 +338,9 @@ class ContextRouterAgent(AIAgent):
         response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
         topic = response.strip().lower()
 
-        if "events_recommendation" in topic:
+        if "event_info" in topic:
+            return self.event_info_agent.process_query(query, user_id)
+        elif "events_recommendation" in topic:
             return self.recommendation_agent.recommend_events(user_id)
         elif topic in ["volunteer_projects", "charity", "volunteer_experience", "small_talk"]:
             return self.dialogue_agent.process_query(query, conversation_history)
