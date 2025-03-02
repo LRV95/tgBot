@@ -12,7 +12,7 @@ from bot.states import (MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_
                         PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY,
                         MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
-                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE)
+                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE, WAIT_FOR_EMPLOYEE_NUMBER)
 
 from bot.handlers.admin import (admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name, find_users_email, load_projects_csv, process_csv_document,
@@ -27,7 +27,7 @@ from bot.handlers.user import (handle_main_menu, handle_ai_chat, handle_voluntee
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
                                handle_profile_update_selection, handle_profile_tag_selection, handle_events_callbacks,
                                handle_registration_city_selection, handle_events, handle_profile_city_selection,
-                               handle_code_redemption)
+                               handle_code_redemption,handle_employee_number)
 
 def admin_required(func):
     def wrapper(update: Update, context: CallbackContext):
@@ -61,6 +61,7 @@ class VolunteerBot:
                 AI_CHAT: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)],
                 VOLUNTEER_HOME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)],
                 GUEST_HOME: [CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu|view_event:.*|share_event:.*|show_filters|filter_tag:.*|back_to_events|unregister_event:.*)$")],
+                WAIT_FOR_EMPLOYEE_NUMBER: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)],
                 REGISTRATION_CITY_SELECTION: [CallbackQueryHandler(handle_registration_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")],
                 REGISTRATION_TAG_SELECTION: [CallbackQueryHandler(handle_registration_tag_selection, pattern="^(tag:.*|done_tags)$")],
                 WAIT_FOR_PROFILE_UPDATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)],

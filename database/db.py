@@ -44,6 +44,8 @@ class Database:
                     CREATE TABLE IF NOT EXISTS users (
                         id INTEGER PRIMARY KEY,
                         first_name TEXT,
+                        telegram_tag TEXT DEFAULT '',
+                        employee_number INTEGER,
                         role TEXT DEFAULT 'user',
                         score INTEGER DEFAULT 0,
                         registered_events TEXT DEFAULT '',
@@ -172,31 +174,27 @@ class Database:
             logger.info(f"Пользователь с id={user_id} не найден в БД")
             return None
 
-    def save_user(self, user_id, first_name=None, role="user"):
-        """Сохраняет информацию о пользователе."""
+    def save_user(self, user_id, first_name=None, role="user", telegram_tag="", employee_number=None):
         try:
-            logger.info(f"Попытка сохранения пользователя: id={user_id}, first_name={first_name}, role={role}")
             with self.connect() as conn:
                 cursor = conn.cursor()
                 existing_user = self.get_user(user_id)
                 if existing_user:
-                    logger.info(f"Обновляем существующего пользователя: id={user_id}")
                     cursor.execute('''
                         UPDATE users 
                         SET first_name = ?,
-                            role = ?
+                            role = ?,
+                            telegram_tag = ?,
+                            employee_number = ?
                         WHERE id = ?
-                    ''', (first_name, role, user_id))
+                    ''', (first_name, role, telegram_tag, employee_number, user_id))
                 else:
-                    logger.info(f"Создаем нового пользователя: id={user_id}")
                     cursor.execute('''
                         INSERT INTO users 
-                        (id, first_name, role, score, registered_events, tags, city)
-                        VALUES (?, ?, ?, 0, '', '', '')
-                    ''', (user_id, first_name, role))
+                        (id, first_name, telegram_tag, employee_number, role, score, registered_events, tags, city)
+                        VALUES (?, ?, ?, ?, ?, 0, '', '', '')
+                    ''', (user_id, first_name, telegram_tag, employee_number, role))
                 conn.commit()
-                saved_user = self.get_user(user_id)
-                logger.info(f"Проверка сохраненных данных: {saved_user}")
         except sqlite3.Error as e:
             logger.error(f"Ошибка при сохранении пользователя: {e}")
             raise DatabaseError(f"Ошибка при сохранении пользователя: {e}")

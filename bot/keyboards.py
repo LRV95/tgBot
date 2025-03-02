@@ -37,9 +37,11 @@ def get_tag_selection_keyboard(selected_tags=None):
     if selected_tags is None:
         selected_tags = []
     buttons = []
-    for tag in TAGS:
+    # Используем enumerate для получения индекса и текста тега
+    for idx, tag in enumerate(TAGS):
         text = f"{tag} {'✓' if tag in selected_tags else ''}"
-        buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{tag}"))
+        # Передаём индекс тега вместо полного текста
+        buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{idx}"))
     keyboard = []
     # Разбиваем кнопки по 2 в ряд
     for i in range(0, len(buttons), 2):
@@ -54,16 +56,18 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
     start_idx = page * page_size
     end_idx = start_idx + page_size
     cities_slice = CITIES[start_idx:end_idx]
-    
-    for city in cities_slice:
+
+    for idx, city in enumerate(cities_slice, start=start_idx):
+        # Отмечаем галочкой, если город выбран
         text = f"{city} {'✔️' if city in selected_cities else ''}"
-        buttons.append(InlineKeyboardButton(text, callback_data=f"city:{city}"))
-    
+        # Передаем индекс города в callback_data, что существенно короче
+        buttons.append(InlineKeyboardButton(text, callback_data=f"city:{idx}"))
+
     keyboard = []
     # Разбиваем кнопки по одной в ряд для лучшей читаемости
     for button in buttons:
         keyboard.append([button])
-    
+
     # Добавляем кнопки навигации
     nav_buttons = []
     if page > 0:
@@ -72,10 +76,10 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
         nav_buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"city_next:{page}"))
     if nav_buttons:
         keyboard.append(nav_buttons)
-    
+
     # Добавляем кнопку "Готово"
     keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
-    
+
     return InlineKeyboardMarkup(keyboard)
 
 def get_events_keyboard(events, page=0, page_size=2, total_count=0, registered_events=None):

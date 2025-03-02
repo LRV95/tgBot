@@ -4,7 +4,7 @@ from telegram.ext import ContextTypes
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
                         PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION,
                         REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU,
-                        REDEEM_CODE)
+                        REDEEM_CODE, WAIT_FOR_EMPLOYEE_NUMBER)
 
 from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
@@ -14,6 +14,7 @@ from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboa
 from database.db import Database
 from services.ai_service import ContextRouterAgent
 from config import ADMIN_ID
+from bot.constants import CITIES, TAGS
 
 db = Database()
 logger = logging.getLogger(__name__)
@@ -276,124 +277,118 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.effective_user
     first_name = user.first_name if user.first_name else "Пользователь"
     user_id = user.id
-    
-    # Проверяем, является ли пользователь администратором
-    is_admin = user_id in ADMIN_ID
-    
-    # Сразу создаем пользователя в базе данных и начинаем регистрацию
+    telegram_tag = user.username if user.username else ""
+    # Сохраняем пользователя пока без табельного номера
     try:
-        role = "admin" if is_admin else "user"
-        db.save_user(user_id, first_name, role=role)
-        logger.info(f"Создан новый пользователь: id={user_id}, first_name={first_name}, role={role}")
+        role = "admin" if user_id in ADMIN_ID else "user"
+        db.save_user(user_id, first_name, role=role, telegram_tag=telegram_tag, employee_number=None)
     except Exception as e:
-        logger.error(f"Ошибка при создании пользователя: {e}")
-        await update.message.reply_text("Произошла ошибка при регистрации. Пожалуйста, попробуйте позже.")
+        await update.message.reply_text("Произошла ошибка при регистрации. Попробуйте позже.")
         return MAIN_MENU
-    
     context.user_data["pending_first_name"] = first_name
-    await update.message.reply_text("Для завершения регистрации, пожалуйста, выберите ваш город:", reply_markup=get_city_selection_keyboard())
-    return REGISTRATION_CITY_SELECTION
+    await update.message.reply_text("Пожалуйста, введите ваш табельный номер (14 цифр):")
+    return WAIT_FOR_EMPLOYEE_NUMBER
+
 
 async def handle_registration_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from bot.constants import CITIES  # убедитесь, что импорт есть
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = query.from_user.id
-    selected_city = context.user_data.get("pending_city", "")
     page = context.user_data.get("city_page", 0)
+
     if data.startswith("city:"):
-        city = data.split(":", 1)[1]
-        # Если город уже выбран, убираем его из выбранных
-        if selected_city == city:
-            context.user_data.pop("pending_city", None)
-            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
-        # Если город не выбран, добавляем его в выбранные
-        else:
-            context.user_data["pending_city"] = city
-            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=[city], page=page))
-        return REGISTRATION_CITY_SELECTION
-    # Перелистывание страниц
+        try:
+            city_index = int(data.split(":", 1)[1])
+            city = CITIES[city_index]
+        except (ValueError, IndexError):
+            await query.answer("Неверные данные для города.")
+            return REGISTRATION_CITY_SELECTION
+
+        # Сохраняем выбор в user_data
+        context.user_data["pending_city"] = city
+        # Автоматически обновляем сообщение и переходим к следующему шагу регистрации
+        await update_to_state(
+            query,
+            f"Город '{city}' сохранён. Теперь выберите теги, которые вас интересуют:",
+            reply_markup=get_tag_selection_keyboard()
+        )
+        return REGISTRATION_TAG_SELECTION
+
     elif data.startswith("city_next:") or data.startswith("city_prev:"):
         try:
             page = int(data.split(":", 1)[1])
         except ValueError:
             page = 0
-        # Следующая страница
         if data.startswith("city_next:"):
             page += 1
-        # Предыдущая страница
         else:
-            page -= 1
+            page = max(0, page - 1)
         context.user_data["city_page"] = page
-        selected = [selected_city] if selected_city else []
-        await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
+        selected = [context.user_data["pending_city"]] if "pending_city" in context.user_data else []
+        # Обновляем только клавиатуру для смены страницы (без смены состояния)
+        await query.edit_message_reply_markup(
+            reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
         return REGISTRATION_CITY_SELECTION
+
     elif data == "done_cities":
-        if selected_city:
-            # Сохраняем город в базу данных
-            db.update_user_city(user_id, selected_city)
-            logger.info(f"Сохранен город для пользователя {user_id}: {selected_city}")
-        else:
-            await query.edit_message_text("Пожалуйста, выберите город перед тем как продолжить", reply_markup=get_city_selection_keyboard())
+        if "pending_city" not in context.user_data:
+            await query.answer("Пожалуйста, выберите город перед продолжением.")
             return REGISTRATION_CITY_SELECTION
-        await query.edit_message_text("Теперь выберите теги, которые вас интересуют:", reply_markup=get_tag_selection_keyboard())
+        # Если город выбран, обновляем данные в БД
+        db.update_user_city(user_id, context.user_data["pending_city"])
+        # Автоматически переходим к следующему шагу регистрации (например, выбор тегов)
+        await update_to_state(
+            query,
+            f"Город '{context.user_data['pending_city']}' сохранён.\nТеперь выберите теги, которые вас интересуют:",
+            reply_markup=get_tag_selection_keyboard()
+        )
         return REGISTRATION_TAG_SELECTION
+
     return REGISTRATION_CITY_SELECTION
 
 async def handle_registration_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from bot.constants import TAGS  # убедитесь, что импорт есть
     query = update.callback_query
     await query.answer()
     data = query.data
     user_id = query.from_user.id
     selected_tags = context.user_data.get("pending_tags", [])
-    
-    # Получаем информацию о пользователе
-    user = db.get_user(user_id)
-    user_role = user.get("role", "user") if user else "user"
-    
+
     if data.startswith("tag:"):
-        tag = data.split(":", 1)[1]
+        try:
+            tag_index = int(data.split(":", 1)[1])
+            tag = TAGS[tag_index]
+        except (ValueError, IndexError):
+            await query.answer("Неверные данные для тега.")
+            return REGISTRATION_TAG_SELECTION
+
         if tag in selected_tags:
             selected_tags.remove(tag)
         else:
             selected_tags.append(tag)
         context.user_data["pending_tags"] = selected_tags
-        new_markup = get_tag_selection_keyboard(selected_tags=selected_tags)
-        try:
-            await query.edit_message_reply_markup(reply_markup=new_markup)
-        except Exception as e:
-            if "not modified" in str(e):
-                pass
-            else:
-                logger.error(f"Ошибка при обновлении списка интересов: {e}")
+        # Обновляем inline клавиатуру, чтобы показать выбор
+        await query.edit_message_reply_markup(reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags))
         return REGISTRATION_TAG_SELECTION
+
     elif data == "done_tags":
-        # Сохраняем теги в базу данных
-        if selected_tags:
-            db.update_user_tags(user_id, ",".join(selected_tags))
-            logger.info(f"Сохранены теги для пользователя {user_id}: {selected_tags}")
-        else:
-            await query.edit_message_text("Пожалуйста, выберите теги перед тем как продолжить", reply_markup=get_tag_selection_keyboard())
+        if not selected_tags:
+            await query.answer("Пожалуйста, выберите хотя бы один тег.")
             return REGISTRATION_TAG_SELECTION
-        try:
-            await query.message.reply_text(
-                "Регистрация успешно завершена! Добро пожаловать!",
-                reply_markup=get_main_menu_keyboard(role=user_role)
-            )
-            # Вывод введенных данных
-            await query.message.reply_text(
-                f"👤 Имя: {context.user_data['pending_first_name']}\n"
-                f"🏙 Город: {context.user_data['pending_city']}\n"
-                f"🏷 Теги: {', '.join(context.user_data['pending_tags'])}"
-            )
-            await query.message.delete()
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения после регистрации: {e}")
-            
-        context.user_data.pop("pending_first_name", None)
+        db.update_user_tags(user_id, ",".join(selected_tags))
+        # Автоматически завершаем регистрацию и возвращаемся в главное меню
+        await update_to_state(
+            query,
+            "Регистрация успешно завершена! Добро пожаловать!",
+            reply_markup=get_main_menu_keyboard(role="user")
+        )
+        # Очистка временных данных регистрации
         context.user_data.pop("pending_city", None)
         context.user_data.pop("pending_tags", None)
         return MAIN_MENU
+
     return REGISTRATION_TAG_SELECTION
 
 async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -868,3 +863,30 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
     message_text = "\n".join(messages) + f"\nВаш новый баланс: {new_score} баллов."
     await update.message.reply_text(message_text)
     return VOLUNTEER_HOME
+
+async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    employee_number_str = update.message.text.strip()
+    if not (employee_number_str.isdigit() and len(employee_number_str) == 14):
+        await update.message.reply_text("Пожалуйста, введите корректный табельный номер – ровно 14 цифр.")
+        return WAIT_FOR_EMPLOYEE_NUMBER
+    employee_number = int(employee_number_str)
+    context.user_data["pending_employee_number"] = employee_number
+    # Обновляем данные пользователя с табельным номером
+    user_id = update.effective_user.id
+    db.save_user(user_id, context.user_data["pending_first_name"], role="user",
+                 telegram_tag=update.effective_user.username if update.effective_user.username else "",
+                 employee_number=employee_number)
+    await update.message.reply_text("Теперь выберите ваш город:", reply_markup=get_city_selection_keyboard())
+    return REGISTRATION_CITY_SELECTION
+
+async def update_to_state(query, text: str, reply_markup=None):
+    """
+    Обновляет сообщение, убирая inline-клавиатуру и отправляя новое сообщение с нужным состоянием.
+    Если используется query, обновляем текущее сообщение, иначе отправляем новое.
+    """
+    try:
+        # Если возможно, изменяем текст текущего сообщения и убираем клавиатуру
+        await query.edit_message_text(text, reply_markup=reply_markup)
+    except Exception:
+        # Если не удалось, отправляем новое сообщение
+        await query.message.reply_text(text, reply_markup=reply_markup)
