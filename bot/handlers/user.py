@@ -567,24 +567,24 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     user_id = update.effective_user.id
     user = db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
-    
+
     if data.startswith("view_event:"):
         event_id = data.split(":", 1)[1]
         event = db.get_event_by_id(int(event_id))
         if not event:
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
-        
+
         # Отмечаем, что мы находимся в режиме просмотра деталей мероприятия
         context.user_data["viewing_event_details"] = True
         context.user_data["current_event_id"] = event_id
-        
+
         # Форматируем информацию о мероприятии
         event_details = format_event_details(event)
-        
+
         # Проверяем, зарегистрирован ли пользователь на это мероприятие
         is_registered = db.is_user_registered_for_event(user_id, event_id)
-        
+
         # Отправляем сообщение с информацией о мероприятии
         await query.edit_message_text(
             event_details,
@@ -592,26 +592,24 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             parse_mode="MarkdownV2"
         )
         return EVENT_DETAILS
+
     elif data.startswith("share_event:"):
         event_id = data.split(":", 1)[1]
         event = db.get_event_by_id(int(event_id))
         if not event:
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
-        
+
         # Создаем сообщение для отправки
         shareable_message = create_shareable_event_message(event)
-        
+
         # Отправляем пользователю сообщение, которым он может поделиться
-        await query.message.reply_text(
-            "📤 Вот сообщение, которым вы можете поделиться с друзьями:"
-        )
-        await query.message.reply_text(
-            shareable_message
-        )
-        
+        await query.message.reply_text("📤 Вот сообщение, которым вы можете поделиться с друзьями:")
+        await query.message.reply_text(shareable_message)
+
         # Возвращаемся к просмотру деталей мероприятия
         return EVENT_DETAILS
+
     elif data == "show_filters":
         # Показываем клавиатуру с фильтрами
         selected_tag = context.user_data.get("selected_tag", None)
@@ -620,6 +618,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             reply_markup=get_events_filter_keyboard(selected_tag)
         )
         return GUEST_HOME
+
     elif data.startswith("filter_tag:"):
         tag = data.split(":", 1)[1]
         if tag == "all":
@@ -628,14 +627,14 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         else:
             # Устанавливаем фильтр по тегу
             context.user_data["selected_tag"] = tag
-        
+
         # Сбрасываем страницу
         context.user_data["events_page"] = 0
-        
+
         # Возвращаемся к списку мероприятий с примененным фильтром
         return await handle_events(update, context)
-    elif data.startswith("register_event:"):
 
+    elif data.startswith("register_event:"):
         event_id = data.split(":", 1)[1]
 
         if db.is_user_registered_for_event(user_id, event_id):
@@ -664,32 +663,44 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
 
         await query.answer(f"Вы успешно зарегистрированы. Код мероприятия: {code}")
 
+        # Обновляем сообщение с деталями мероприятия, чтобы отобразить изменение статуса регистрации
+        if context.user_data.get("viewing_event_details"):
+            event = db.get_event_by_id(int(event_id))
+            event_details = format_event_details(event)
+            await query.edit_message_text(
+                event_details,
+                reply_markup=get_event_details_keyboard(event_id, True),
+                parse_mode="MarkdownV2"
+            )
+            return EVENT_DETAILS
+        else:
+            return await handle_events(update, context)
 
     elif data.startswith("unregister_event:"):
         event_id = data.split(":", 1)[1]
-        
+
         # Проверяем, зарегистрирован ли пользователь
         if not db.is_user_registered_for_event(user_id, event_id):
             await query.answer("Вы не зарегистрированы на это мероприятие")
             return GUEST_HOME
-            
+
         # Получаем информацию о мероприятии
         event = db.get_event_by_id(int(event_id))
         if not event:
             await query.answer("Мероприятие не найдено")
             return GUEST_HOME
-            
+
         # Удаляем мероприятие из списка зарегистрированных
         reg_events = user.get("registered_events", "")
         events_list = [e.strip() for e in reg_events.split(",") if e.strip() and e != str(event_id)]
         db.update_user_registered_events(user_id, ",".join(events_list))
-        
+
         # Уменьшаем счетчик участников мероприятия
         db.decrement_event_participants_count(int(event_id))
-        
+
         # Получаем обновленную информацию о мероприятии
         event = db.get_event_by_id(int(event_id))
-        
+
         # Если мы находимся в детальном просмотре, обновляем информацию
         if context.user_data.get("viewing_event_details"):
             event_details = format_event_details(event)
@@ -701,11 +712,13 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             return EVENT_DETAILS
         else:
             return await handle_events(update, context)
+
     elif data == "back_to_events":
         # Очищаем данные о просмотре деталей мероприятия
         context.user_data.pop("viewing_event_details", None)
         context.user_data.pop("current_event_id", None)
         return await handle_events(update, context)
+
     elif data.startswith("events_next:") or data.startswith("events_prev:"):
         page = context.user_data.get("events_page", 0)
         if data.startswith("events_next:"):
@@ -714,9 +727,11 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             page = max(0, page - 1)
         context.user_data["events_page"] = page
         return await handle_events(update, context)
+
     elif data == "back_to_menu":
         # Отправляем новое сообщение с клавиатурой главного меню вместо редактирования текущего
-        await query.message.reply_text("Возвращаемся в главное меню", reply_markup=get_main_menu_keyboard(role=user_role))
+        await query.message.reply_text("Возвращаемся в главное меню",
+                                       reply_markup=get_main_menu_keyboard(role=user_role))
         # Удаляем или скрываем предыдущее сообщение с инлайн-клавиатурой
         try:
             await query.message.delete()
@@ -724,7 +739,9 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             # Если не удалось удалить, просто скрываем клавиатуру
             await query.edit_message_reply_markup(reply_markup=None)
         return MAIN_MENU
+
     return MAIN_MENU
+
 
 async def handle_profile_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
