@@ -176,14 +176,20 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return await handle_registration(update, context)
     elif text == "Выход":
-        await update.message.reply_text("Вы вышли из меню. Для повторного входа отправьте /start")
+        # Вместо завершения диалога уведомляем пользователя, что он уже в главном меню
+        await update.message.reply_text(
+            "Вы уже в главном меню.",
+            reply_markup=get_main_menu_keyboard(role=user_role)
+        )
         return MAIN_MENU
     else:
-        # Если текст начинается со слэша и пользователь администратор — оставляем обработку командами
         if user_role == "admin" and text.startswith("/"):
             return MAIN_MENU
 
-        await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
+        await update.message.reply_text(
+            "Неизвестная команда. Попробуйте ещё раз.",
+            reply_markup=get_main_menu_keyboard(role=user_role)
+        )
         return MAIN_MENU
 
 
@@ -495,19 +501,16 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
         return PROFILE_MENU
     return PROFILE_TAG_SELECTION
 
-async def handle_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def handle_events(update, context) -> int:
     query = update.callback_query if update.callback_query else None
-    if query:
-        await query.answer()
     user_id = update.effective_user.id
     user = db.get_user(user_id)
     page = context.user_data.get("events_page", 0)
     selected_tag = context.user_data.get("selected_tag", None)
-    
-    # Получаем события в зависимости от выбранного фильтра
+
+    # Получаем мероприятия в зависимости от выбранного фильтра
     if selected_tag and selected_tag != "all":
         if user and user.get("city"):
-            city = user["city"]
             events = db.get_events_by_tag(selected_tag, limit=2, offset=page * 2)
             total_events = db.get_events_count_by_tag(selected_tag)
             if not events:
@@ -518,41 +521,49 @@ async def handle_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             total_events = db.get_events_count_by_tag(selected_tag)
     else:
         if user and user.get("city"):
-            city = user["city"]
-            events = db.get_events_by_city(city, limit=2, offset=page * 2)
-            total_events = db.get_events_count_by_city(city)
+            events = db.get_events_by_city(user["city"], limit=2, offset=page * 2)
+            total_events = db.get_events_count_by_city(user["city"])
             if not events:
                 events = db.get_events(limit=2, offset=page * 2)
                 total_events = db.get_events_count()
         else:
             events = db.get_events(limit=2, offset=page * 2)
             total_events = db.get_events_count()
-    
-    # Проверяем, есть ли у пользователя зарегистрированные мероприятия
+
+    # Получаем список зарегистрированных мероприятий пользователя
     registered = []
     if user and "registered_events" in user:
         registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
-    
-    # Формируем заголовок сообщения в зависимости от выбранного фильтра
+
+    # Формируем заголовок сообщения
     if selected_tag and selected_tag != "all":
         message_text = f"Список мероприятий по тегу '{selected_tag}':"
     else:
         message_text = "Список мероприятий:"
-    
-    # Проверяем, есть ли мероприятия для отображения
+
+    # Если мероприятий нет, отправляем сообщение с кнопкой "Выход"
     if not events:
         message_text = "К сожалению, мероприятий не найдено."
+        exit_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Выход", callback_data="back_to_menu")]
+        ])
         if query:
-            await query.edit_message_text(message_text)
+            await query.edit_message_text(message_text, reply_markup=exit_keyboard)
         else:
-            await update.message.reply_text(message_text)
+            await update.message.reply_text(message_text, reply_markup=exit_keyboard)
         return GUEST_HOME
-    
-    # Отображаем список мероприятий
+
+    # Если мероприятия есть, отправляем список с клавиатурой
     if query:
-        await query.edit_message_text(message_text, reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered))
+        await query.edit_message_text(
+            message_text,
+            reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered)
+        )
     else:
-        await update.message.reply_text(message_text, reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered))
+        await update.message.reply_text(
+            message_text,
+            reply_markup=get_events_keyboard(events, page, 2, total_events, registered_events=registered)
+        )
     return GUEST_HOME
 
 async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
