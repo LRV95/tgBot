@@ -169,6 +169,14 @@ class VolunteerBot:
             fallbacks=[CommandHandler("cancel", cancel)]
         )
         self.application.add_handler(conv_handler)
+        
+        self.application.add_handler(
+            CallbackQueryHandler(
+                moderator_handle_delete_event_callback,
+                pattern=r"^delete_event:\d+$"
+            )
+        )
+        
         csv_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("load_projects_csv", load_projects_csv)],
             states={WAIT_FOR_CSV: [MessageHandler(filters.Document.FileExtension("csv"), process_csv_document)]},

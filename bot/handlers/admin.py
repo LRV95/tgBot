@@ -489,27 +489,36 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
     """Обрабатывает нажатие кнопки удаления мероприятия."""
     query = update.callback_query
     await query.answer()
-    event_id = query.data.split(":", 1)[1]
+    
+    # Получаем ID мероприятия из callback_data
+    event_id = int(query.data.split(":", 1)[1])
+    
+    # Проверяем права пользователя
     user = update.effective_user
     user_record = db.get_user(user.id)
-    event = db.get_event_by_id(int(event_id))
-
-    if not event:
-        await query.edit_message_text("Мероприятие не найдено.")
+    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
+        await query.edit_message_text("🚫 У вас нет прав на удаление мероприятий.")
         return MODERATION_MENU
 
-    # Проверяем права на удаление
-    if user_record.get("role") == "admin" or (
-        user_record.get("role") == "moderator" and 
-        event.get("creator") == f"moderator:{user.id}"
-    ):
-        try:
-            db.delete_event(event_id)
-            await query.edit_message_text("Мероприятие успешно удалено.")
-        except Exception as e:
-            await query.edit_message_text(f"Ошибка при удалении мероприятия: {e}")
-    else:
-        await query.edit_message_text("🚫 У вас нет прав на удаление этого мероприятия.")
+    # Получаем информацию о мероприятии
+    event = db.get_event_by_id(event_id)
+    if not event:
+        await query.edit_message_text("❌ Мероприятие не найдено.")
+        return MODERATION_MENU
+
+    # Проверяем, может ли модератор удалить это мероприятие
+    if user_record.get("role") == "moderator" and event.get("owner") != f"moderator:{user.id}":
+        await query.edit_message_text("🚫 Вы можете удалять только свои мероприятия.")
+        return MODERATION_MENU
+
+    try:
+        # Удаляем мероприятие
+        db.delete_event(event_id)
+        await query.edit_message_text(f"✅ Мероприятие \"{event.get('name')}\" успешно удалено.")
+    except Exception as e:
+        logger.error(f"Ошибка при удалении мероприятия: {e}")
+        await query.edit_message_text("❌ Произошла ошибка при удалении мероприятия.")
+    
     return MODERATION_MENU
 
 async def moderator_handle_search_event_users(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

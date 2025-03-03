@@ -414,7 +414,37 @@ class Database:
             return users
 
     def delete_event(self, event_id):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
-            conn.commit()
+        """Удаляет мероприятие из базы данных."""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                
+                # Сначала удаляем все ссылки на мероприятие из registered_events пользователей
+                cursor.execute("SELECT id, registered_events FROM users WHERE registered_events LIKE ?", (f"%{event_id}%",))
+                users = cursor.fetchall()
+                
+                for user_id, registered_events in users:
+                    # Разбиваем строку с мероприятиями и удаляем нужное
+                    events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
+                    if str(event_id) in events_list:
+                        events_list.remove(str(event_id))
+                        new_registered_events = ",".join(events_list)
+                        cursor.execute(
+                            "UPDATE users SET registered_events = ? WHERE id = ?",
+                            (new_registered_events, user_id)
+                        )
+                
+                # Затем удаляем само мероприятие
+                cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
+                conn.commit()
+                
+                if cursor.rowcount == 0:
+                    logger.warning(f"Мероприятие с ID {event_id} не найдено при попытке удаления")
+                    return False
+                    
+                logger.info(f"Мероприятие с ID {event_id} успешно удалено")
+                return True
+                
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при удалении мероприятия: {e}")
+            raise DatabaseError(f"Ошибка при удалении мероприятия: {e}")
