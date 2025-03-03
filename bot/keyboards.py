@@ -134,8 +134,6 @@ def get_event_details_keyboard(event_id, is_registered=False):
     else:
         buttons.append(["✅ Зарегистрироваться"])
 
-    # Кнопка для того, чтобы поделиться мероприятием
-    buttons.append(["📤 Поделиться"])
     buttons.append(["⬅️ Назад к списку"])
     buttons.append(["❌ Выход"])
 

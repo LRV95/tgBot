@@ -790,7 +790,7 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return VOLUNTEER_HOME
 
-    elif text == "⬅️ Назад к списку":
+    if text == "⬅️ Назад к списку":
         context.user_data.pop("current_event_id", None)
         return await handle_events(update, context)
 
@@ -802,7 +802,68 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return VOLUNTEER_HOME
 
-    elif text in ["✅ Зарегистрироваться", "❌ Отменить регистрацию"]:
-        return await handle_events_callbacks(update, context)
+    elif text == "✅ Зарегистрироваться":
+        # Получаем информацию о пользователе и мероприятии
+        user = db.get_user(user_id)
+        event = db.get_event_by_id(int(event_id))
+        
+        if not event:
+            await update.message.reply_text("❌ Мероприятие не найдено.")
+            return VOLUNTEER_HOME
+
+        # Проверяем, не зарегистрирован ли уже пользователь
+        if db.is_user_registered_for_event(user_id, event_id):
+            await update.message.reply_text("❌ Вы уже зарегистрированы на это мероприятие.")
+            return EVENT_DETAILS
+
+        try:
+            # Добавляем мероприятие в список зарегистрированных
+            registered_events = user.get("registered_events", "").split(",")
+            registered_events = [e.strip() for e in registered_events if e.strip()]
+            registered_events.append(str(event_id))
+            db.update_user_registered_events(user_id, ",".join(registered_events))
+            
+            # Увеличиваем счетчик участников
+            if not db.increment_event_participants_count(int(event_id)):
+                logger.error(f"Не удалось увеличить счетчик участников для мероприятия {event_id}")
+            
+            await update.message.reply_text(
+                f"✅ Вы успешно зарегистрировались на мероприятие \"{event.get('name')}\"!"
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка при регистрации на мероприятие: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при регистрации на мероприятие.")
+        
+        return EVENT_DETAILS
+
+    elif text == "❌ Отменить регистрацию":
+        # Получаем информацию о пользователе и мероприятии
+        user = db.get_user(user_id)
+        event = db.get_event_by_id(int(event_id))
+        
+        if not event:
+            await update.message.reply_text("❌ Мероприятие не найдено.")
+            return VOLUNTEER_HOME
+
+        try:
+            # Удаляем мероприятие из списка зарегистрированных
+            registered_events = user.get("registered_events", "").split(",")
+            registered_events = [e.strip() for e in registered_events if e.strip() and e != str(event_id)]
+            db.update_user_registered_events(user_id, ",".join(registered_events))
+            
+            # Уменьшаем счетчик участников
+            if not db.decrement_event_participants_count(int(event_id)):
+                logger.error(f"Не удалось уменьшить счетчик участников для мероприятия {event_id}")
+            
+            await update.message.reply_text(
+                f"✅ Регистрация на мероприятие \"{event.get('name')}\" отменена."
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка при отмене регистрации: {e}")
+            await update.message.reply_text("❌ Произошла ошибка при отмене регистрации.")
+        
+        return EVENT_DETAILS
 
     return EVENT_DETAILS
