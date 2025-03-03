@@ -219,7 +219,8 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_markdown_v2(reply, reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
     elif text == "Ввести код":
-        await update.message.reply_text("Пожалуйста, введите код, который вам выдал модератор:")
+        keyboard = ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
+        await update.message.reply_text("Пожалуйста, введите код, который вам выдал модератор:", reply_markup=keyboard)
         return REDEEM_CODE
     elif text == "Выход":
         reply = f"Возвращаемся в главное меню!"
@@ -689,57 +690,56 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
 
 
 async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обрабатывает ввод кода мероприятия."""
+    # TODO: сделать сохранение истории пройденных мероприятий
+    # TODO: в том числе и для того, чтобы нельзя было пройти одно и тоже мероприятие дважды
+    """Обработчик ввода кода мероприятия."""
+    text = update.message.text
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
-    if not user:
-        await update.message.reply_text("❌ Ошибка: пользователь не найден")
-        return VOLUNTEER_HOME
 
-    entered_code = update.message.text.strip()
+    keyboard = ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
     
-    try:
-        # Ищем мероприятие по коду
-        events = db.get_all_events()
-        event = next((e for e in events if e.get('code', '') == entered_code), None)
-        
-        if not event:
-            await update.message.reply_text(
-                "❌ Неверный код мероприятия. Пожалуйста, проверьте код и попробуйте снова.",
-                reply_markup=get_volunteer_home_keyboard()
-            )
-            return VOLUNTEER_HOME
-
-        # Проверяем, не зарегистрирован ли уже пользователь
-        registered_events = user.get("registered_events", "").split(",")
-        registered_events = [e.strip() for e in registered_events if e.strip()]
-        
-        if str(event['id']) in registered_events:
-            await update.message.reply_text(
-                "❌ Вы уже зарегистрированы на это мероприятие.",
-                reply_markup=get_volunteer_home_keyboard()
-            )
-            return VOLUNTEER_HOME
-
-        # Регистрируем пользователя на мероприятие
-        registered_events.append(str(event['id']))
-        db.update_user_registered_events(user_id, ",".join(registered_events))
-        
-        # Обновляем количество участников
-        db.increment_event_participants(event['id'])
-        
-        # Начисляем баллы
-        points = event.get('participation_points', 5)
-        current_score = user.get('score', 0)
-        db.update_user_score(user_id, current_score + points)
-        
-        await update.message.reply_markdown(
-            f"✅ *Успешная регистрация!*\n\n"
-            f"Мероприятие: *{escape_markdown_v2(event['name'])}*\n"
-            f"Начислено баллов: *{points}*\n"
-            f"Ваш текущий баланс: *{current_score + points}* баллов",
+    if text == "❌ Отмена":
+        await update.message.reply_text(
+            "Ввод кода отменен.",
             reply_markup=get_volunteer_home_keyboard()
         )
+        return VOLUNTEER_HOME
+        
+    try:
+        events = db.get_all_events()
+        found_event = None
+        for event in events:
+            if event.get("code") == text:
+                found_event = event
+                break
+
+        if not found_event:
+            await update.message.reply_text(
+                "❌ Неверный код мероприятия. Попробуйте еще раз или нажмите 'Отмена'.",
+                reply_markup=keyboard
+            )
+            return REDEEM_CODE
+            
+        # Проверяем, был ли зарегистрирован пользователь на мероприятие
+        if db.is_user_registered_for_event(user_id, str(found_event['id'])):
+            # Начисляем баллы
+            user = db.get_user(user_id)
+            points = found_event.get("participation_points", 0)
+            current_score = user.get("score", 0)
+            db.update_user_score(user_id, current_score + points)
+            db.unregister_user_from_event(user_id, str(found_event['id']))
+            
+            await update.message.reply_markdown(
+                f"Мероприятие: *{found_event['name']}*\n"
+                f"Начислено баллов: *{points}*\n"
+                f"Ваш текущий баланс: *{current_score + points}* баллов",
+                reply_markup=get_volunteer_home_keyboard()
+            )
+        else:
+            await update.message.reply_text(
+                "❌ Вы не были зарегистрированы на это мероприятие.",
+                reply_markup=get_volunteer_home_keyboard()
+            )
         
         return VOLUNTEER_HOME
         

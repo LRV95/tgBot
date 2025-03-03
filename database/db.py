@@ -270,6 +270,31 @@ class Database:
             cursor.execute('UPDATE users SET tags = ? WHERE id = ?', (tags, user_id))
             conn.commit()
 
+    def update_user_score(self, user_id, score):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET score = ? WHERE id = ?', (score, user_id))
+            conn.commit()
+
+    def unregister_user_from_event(self, user_id, event_id):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            # Получаем текущий список зарегистрированных мероприятий
+            cursor.execute('SELECT registered_events FROM users WHERE id = ?', (user_id,))
+            result = cursor.fetchone()
+            if result and result[0]:
+                # Преобразуем строку в список
+                registered_events = result[0].split(',')
+                # Удаляем event_id из списка, если он там есть
+                if event_id in registered_events:
+                    registered_events.remove(event_id)
+                    # Преобразуем список обратно в строку
+                    new_registered_events = ','.join(registered_events) if registered_events else None
+                    # Обновляем запись в базе данных
+                    cursor.execute('UPDATE users SET registered_events = ? WHERE id = ?', 
+                                 (new_registered_events, user_id))
+                    conn.commit()
+
     def get_events_by_city(self, city, limit=5, offset=0):
         """Возвращает список мероприятий для указанного города с постраничной выборкой."""
         with self.connect() as conn:
@@ -363,12 +388,15 @@ class Database:
 
     def is_user_registered_for_event(self, user_id: int, event_id: str) -> bool:
         """Проверяет, зарегистрирован ли пользователь на мероприятие."""
-        user = self.get_user(user_id)
-        if not user:
+        try:
+            user = self.get_user(user_id)
+            if not user:
+                return False
+            registered_events = user.get("registered_events", "")
+            events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
+            return bool(str(event_id) in events_list)
+        except:
             return False
-        registered_events = user.get("registered_events", "")
-        events_list = [e.strip() for e in registered_events.split(",") if e.strip()]
-        return str(event_id) in events_list
 
     def increment_event_participants_count(self, event_id: int) -> bool:
         """Увеличивает счетчик участников мероприятия на 1."""
