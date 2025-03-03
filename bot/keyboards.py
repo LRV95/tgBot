@@ -86,16 +86,7 @@ def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_e
     
     # Добавляем кнопки для каждого мероприятия
     for event in events:
-        name = ""
-        if event.get("tags"):
-            parts = event["tags"].split(";")
-            for part in parts:
-                if "Название:" in part:
-                    name = part.split("Название:")[1].strip()
-                    break
-        if not name:
-            name = f"Мероприятие #{event['id']}"
-
+        name = event.get("name")
         # Добавляем статус регистрации к названию
         text = f"✨ {name}"
         if str(event['id']) in registered_events:

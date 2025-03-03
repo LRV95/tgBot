@@ -548,15 +548,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
 
     # Обработка выбора мероприятия
     for event in current_events:
-        name = ""
-        if event.get("tags"):
-            parts = event["tags"].split(";")
-            for part in parts:
-                if "Название:" in part:
-                    name = part.split("Название:")[1].strip()
-                    break
-        if not name:
-            name = f"Мероприятие #{event['id']}"
+        name = event.get("name")
 
         event_text = f"✨ {name}"
         if str(event['id']) in user.get("registered_events", "").split(","):

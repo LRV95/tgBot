@@ -260,32 +260,8 @@ class EventInfoAgent(AIAgent):
         final_response = get_gigachat_response({"messages": [{"role": "user", "content": response_text}]})
         return final_response
 
-    def _extract_event_name(self, event: dict) -> str:
-        name = ""
-        if event.get("tags"):
-            parts = event["tags"].split(";")
-            for part in parts:
-                if "Название:" in part:
-                    name = part.split("Название:")[1].strip()
-                    break
-        if not name:
-            name = f"Мероприятие #{event.get('id')}"
-        return name
-
 # Новый агент для показа случайных мероприятий
 class RandomEventsAgent(AIAgent):
-    def _extract_event_name(self, event: dict) -> str:
-        name = ""
-        if event.get("tags"):
-            parts = event["tags"].split(";")
-            for part in parts:
-                if "Название:" in part:
-                    name = part.split("Название:")[1].strip()
-                    break
-        if not name:
-            name = f"Мероприятие #{event.get('id')}"
-        return name
-
     def process_query(self, query: str, user_id: int) -> str:
         events = self.db.get_all_events()
         if not events:
@@ -294,7 +270,7 @@ class RandomEventsAgent(AIAgent):
         selected_events = random.sample(events, 5) if len(events) > 5 else events
         response_lines = ["Вот 5 случайных мероприятий:"]
         for event in selected_events:
-            name = self._extract_event_name(event)
+            name = event.get("name")
             date = event.get("event_date", "Неизвестно")
             time_str = event.get("start_time", "Неизвестно")
             city = event.get("city", "Неизвестно")

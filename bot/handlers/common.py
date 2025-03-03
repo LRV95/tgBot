@@ -50,15 +50,7 @@ async def start(update: Update, context: CallbackContext):
             if upcoming_events:
                 events_text = "📅 *Ближайшие мероприятия:*\n\n"
                 for event in upcoming_events:
-                    name = ""
-                    if event.get("tags"):
-                        parts = event["tags"].split(";")
-                        for part in parts:
-                            if "Название:" in part:
-                                name = part.split("Название:")[1].strip()
-                                break
-                    if not name:
-                        name = f"Мероприятие #{event['id']}"
+                    name = event.get("name")
                     
                     # Экранируем специальные символы для Markdown V2
                     name_escaped = escape_markdown_v2(name)
