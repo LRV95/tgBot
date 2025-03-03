@@ -33,7 +33,7 @@ def get_volunteer_home_keyboard():
 
 
 def get_profile_menu_keyboard():
-    return ReplyKeyboardMarkup([["Изменить информацию", "Выход"]],
+    return ReplyKeyboardMarkup([["Изменить имя", "Изменить интересы", "Изменить город"], ["Выход"]],
                                resize_keyboard=True)
 
 
@@ -41,17 +41,15 @@ def get_tag_selection_keyboard(selected_tags=None):
     if selected_tags is None:
         selected_tags = []
     buttons = []
-    # Используем enumerate для получения индекса и текста тега
-    for idx, tag in enumerate(TAGS):
+    # Добавляем кнопки для каждого тега
+    for tag in TAGS:
         text = f"{tag} {'✓' if tag in selected_tags else ''}"
-        # Передаём индекс тега вместо полного текста
-        buttons.append(InlineKeyboardButton(text, callback_data=f"tag:{idx}"))
-    keyboard = []
-    # Разбиваем кнопки по 2 в ряд
-    for i in range(0, len(buttons), 2):
-        keyboard.append(buttons[i:i + 2])
-    keyboard.append([InlineKeyboardButton("Готово", callback_data="done_tags")])
-    return InlineKeyboardMarkup(keyboard)
+        buttons.append([text])
+    
+    # Добавляем кнопку "Готово" и "Отмена"
+    buttons.append(["✅ Готово", "❌ Отмена"])
+    
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 
 def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
@@ -62,30 +60,24 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
     end_idx = start_idx + page_size
     cities_slice = CITIES[start_idx:end_idx]
 
-    for idx, city in enumerate(cities_slice, start=start_idx):
-        # Отмечаем галочкой, если город выбран
+    # Добавляем кнопки для каждого города
+    for city in cities_slice:
         text = f"{city} {'✔️' if city in selected_cities else ''}"
-        # Передаем индекс города в callback_data, что существенно короче
-        buttons.append(InlineKeyboardButton(text, callback_data=f"city:{idx}"))
+        buttons.append([text])
 
-    keyboard = []
-    # Разбиваем кнопки по одной в ряд для лучшей читаемости
-    for button in buttons:
-        keyboard.append([button])
-
-    # Добавляем кнопки навигации
+    # Добавляем навигационные кнопки
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Назад", callback_data=f"city_prev:{page}"))
+        nav_buttons.append("⬅️ Назад")
     if end_idx < len(CITIES):
-        nav_buttons.append(InlineKeyboardButton("Вперед ➡️", callback_data=f"city_next:{page}"))
+        nav_buttons.append("Вперед ➡️")
     if nav_buttons:
-        keyboard.append(nav_buttons)
+        buttons.append(nav_buttons)
 
-    # Добавляем кнопку "Готово"
-    keyboard.append([InlineKeyboardButton("Готово", callback_data="done_cities")])
+    # Добавляем кнопку отмены
+    buttons.append(["❌ Отмена"])
 
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_events_keyboard(events, page=0, page_size=2, total_count=0, registered_events=None):
     if registered_events is None:
@@ -158,15 +150,6 @@ def get_events_filter_keyboard(selected_tag=None):
     # Убрана кнопка возврата к списку, чтобы не требовалось её нажимать
 
     return InlineKeyboardMarkup(keyboard)
-
-
-def get_profile_update_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("Имя", callback_data="update:name"),
-         InlineKeyboardButton("Интересы", callback_data="update:tags")],
-        [InlineKeyboardButton("Город", callback_data="update:city")],
-        [InlineKeyboardButton("❌ Отмена", callback_data="update:cancel")]
-    ])
 
 
 def get_event_details_keyboard(event_id, is_registered=False):

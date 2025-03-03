@@ -8,7 +8,7 @@ from bot.handlers.common import start, cancel
 
 from bot.states import (MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU,
                         WAIT_FOR_PROFILE_UPDATE, REGISTRATION_TAG_SELECTION, PROFILE_TAG_SELECTION,
-                        PROFILE_UPDATE_SELECTION, WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION,
+                        WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION,
                         PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY,
                         MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
@@ -25,7 +25,7 @@ from bot.handlers.admin import (admin_command, load_excel, set_admin, set_modera
 
 from bot.handlers.user import (handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
-                               handle_profile_update_selection, handle_profile_tag_selection, handle_events_callbacks,
+                               handle_profile_tag_selection, handle_events_callbacks,
                                handle_registration_city_selection, handle_events, handle_profile_city_selection,
                                handle_code_redemption, handle_employee_number)
 
@@ -93,18 +93,17 @@ class VolunteerBot:
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)
                 ],
-                PROFILE_UPDATE_SELECTION: [
-                    CallbackQueryHandler(handle_profile_update_selection, pattern="^(update:.*)$")
-                ],
                 PROFILE_TAG_SELECTION: [
-                    CallbackQueryHandler(handle_profile_tag_selection, pattern="^(tag:.*|done_tags)$")
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_tag_selection)
                 ],
                 PROFILE_MENU: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)
                 ],
                 PROFILE_CITY_SELECTION: [
-                    CallbackQueryHandler(handle_profile_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_city_selection)
                 ],
                 MODERATION_MENU: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),

@@ -2,13 +2,13 @@ import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
-                        PROFILE_TAG_SELECTION, PROFILE_UPDATE_SELECTION, REGISTRATION_TAG_SELECTION,
+                        PROFILE_TAG_SELECTION, REGISTRATION_TAG_SELECTION,
                         REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU,
                         REDEEM_CODE, WAIT_FOR_EMPLOYEE_NUMBER)
 
 from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
-                           get_profile_update_keyboard, get_event_details_keyboard, get_events_filter_keyboard,
+                           get_event_details_keyboard, get_events_filter_keyboard,
                            get_ai_chat_keyboard)
 
 from database.db import Database
@@ -248,7 +248,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
             f"• Регистрация на мероприятия\n"
             f"• Управление профилем\n"
             f"• Накопление бонусных баллов\n\n"
-            f"Для возврата в главное меню нажмите кнопку \"Выход\"\\."
+            f"Для возврата в главное меню нажмите кнопку \\\"Выход\\\"\\."
         )
         await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
@@ -403,9 +403,18 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
     
-    if text == "Изменить информацию":
-        await update.message.reply_text("Что вы хотите изменить?", reply_markup=get_profile_update_keyboard())
-        return PROFILE_UPDATE_SELECTION
+    if text == "Изменить имя":
+        await update.message.reply_text("Введите ваше новое имя:")
+        return WAIT_FOR_PROFILE_UPDATE
+    elif text == "Изменить интересы":
+        # Загружаем текущие интересы пользователя
+        current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+        context.user_data["profile_tags"] = current_tags
+        await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
+        return PROFILE_TAG_SELECTION
+    elif text == "Изменить город":
+        await update.message.reply_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
+        return PROFILE_CITY_SELECTION
     elif text == "Выход":
         await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_volunteer_home_keyboard())
         return VOLUNTEER_HOME
@@ -423,82 +432,100 @@ async def get_profile_info(user_id: int) -> str:
     return format_profile_message(user)
 
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    new_first_name = update.message.text.strip()
     user_id = update.effective_user.id
-    db.update_first_name(user_id, new_first_name)
+    user = db.get_user(user_id)
+    old_first_name = escape_markdown_v2(user.get("first_name", "Неизвестно"))
+    new_first_name = escape_markdown_v2(update.message.text.strip())
+    db.update_first_name(user_id, update.message.text.strip())
     profile_info = await get_profile_info(user_id)
     await update.message.reply_markdown_v2(
-        f"✅ Ваше имя успешно обновлено\\!\n\n{profile_info}",
+        f"✅ Ваше имя успешно изменено с {old_first_name} на {new_first_name}\\!",
         reply_markup=get_profile_menu_keyboard()
     )
     return PROFILE_MENU
 
-async def handle_profile_update_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    if data.startswith("update:"):
-        option = data.split(":", 1)[1]
-        if option == "name":
-            await query.edit_message_text("Введите ваше новое имя:")
-            return WAIT_FOR_PROFILE_UPDATE
-        elif option == "tags":
-            # Загружаем текущие интересы пользователя
-            user = db.get_user(query.from_user.id)
-            current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
-            context.user_data["profile_tags"] = current_tags
-            await query.edit_message_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
-            return PROFILE_TAG_SELECTION
-        elif option == "city":
-            await query.edit_message_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
-            return PROFILE_CITY_SELECTION
-        elif option == "cancel":
-            # Возвращаемся в меню профиля
-            user = db.get_user(query.from_user.id)
-            profile_info = await get_profile_info(user.get("id"))
-            await query.edit_message_text(
-                f"*Ваш профиль*\n\n{profile_info}",
-                parse_mode="MarkdownV2",
-                reply_markup=None
-            )
-            return PROFILE_MENU
-    await query.edit_message_text("Неизвестная команда.")
-    return PROFILE_MENU
-
 async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    user_id = query.from_user.id
+    text = update.message.text
+    user_id = update.effective_user.id
     selected_tags = context.user_data.get("profile_tags", [])
     
-    if data.startswith("tag:"):
-        tag = data.split(":", 1)[1]
-        if tag in selected_tags:
-            selected_tags.remove(tag)
-        else:
-            selected_tags.append(tag)
-        context.user_data["profile_tags"] = selected_tags
-        try:
-            await query.edit_message_reply_markup(reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags))
-        except Exception as e:
-            if "not modified" in str(e):
-                pass
-            else:
-                logger.error(f"Ошибка при обновлении списка интересов: {e}")
-        return PROFILE_TAG_SELECTION
-    elif data == "done_tags":
+    # Получаем текущие интересы пользователя из БД
+    user = db.get_user(user_id)
+    old_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
+
+    if text == "✅ Готово":
+        if not selected_tags:
+            await update.message.reply_text(
+                "❗️ Пожалуйста, выберите хотя бы один интерес.",
+                reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
+            )
+            return PROFILE_TAG_SELECTION
+
         db.update_user_tags(user_id, ",".join(selected_tags))
         profile_info = await get_profile_info(user_id)
-        try:
-            await query.message.reply_markdown_v2(
-                f"✅ Ваши интересы успешно обновлены\\!\n\n{profile_info}",
-                reply_markup=get_profile_menu_keyboard()
-            )
-            await query.message.delete()
-        except Exception as e:
-            logger.error(f"Ошибка при обновлении сообщения после выбора интересов: {e}")
+        
+        # Форматируем старые и новые интересы для наглядного сравнения
+        old_tags_formatted = "нет" if not old_tags else "\n".join([f"📌 {escape_markdown_v2(tag)}" for tag in old_tags])
+        new_tags_formatted = "\n".join([f"🎯 {escape_markdown_v2(tag)}" for tag in selected_tags])
+        
+        # Определяем, какие теги были добавлены и удалены
+        added_tags = [tag for tag in selected_tags if tag not in old_tags]
+        removed_tags = [tag for tag in old_tags if tag not in selected_tags]
+        
+        changes_summary = []
+        if added_tags:
+            changes_summary.extend([f"\\+ {escape_markdown_v2(tag)}" for tag in added_tags])
+        if removed_tags:
+            changes_summary.extend([f"\\- {escape_markdown_v2(tag)}" for tag in removed_tags])
+        
+        message = [
+            "🔄 *Изменение интересов*",
+            "",
+            "*Было:*",
+            old_tags_formatted,
+            "",
+            "*Стало:*",
+            new_tags_formatted,
+            ""
+        ]
+        
+        if changes_summary:
+            message.extend([
+                "*Изменения:*",
+                *changes_summary
+            ])
+            
+        await update.message.reply_markdown_v2(
+            "\n".join(message),
+            reply_markup=get_profile_menu_keyboard()
+        )
         return PROFILE_MENU
+    
+    elif text == "❌ Отмена":
+        await update.message.reply_text(
+            "Изменение интересов отменено.",
+            reply_markup=get_profile_menu_keyboard()
+        )
+        return PROFILE_MENU
+    
+    # Обработка выбора тега
+    for tag in TAGS:
+        if text.startswith(tag):
+            if tag in selected_tags:
+                selected_tags.remove(tag)
+            else:
+                selected_tags.append(tag)
+            context.user_data["profile_tags"] = selected_tags
+            await update.message.reply_text(
+                "Выберите ваши интересы:",
+                reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
+            )
+            return PROFILE_TAG_SELECTION
+
+    await update.message.reply_text(
+        "Пожалуйста, используйте кнопки для выбора интересов.",
+        reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
+    )
     return PROFILE_TAG_SELECTION
 
 async def handle_events(update, context) -> int:
@@ -667,7 +694,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
 
         db.increment_event_participants_count(int(event_id))
 
-        await query.answer(f"Вы успешно зарегистрированы. Код мероприятия: {code}")
+        await query.answer(f"Вы успешно зарегистрированы\\. Код мероприятия: {escape_markdown_v2(code)}")
 
         # Обновляем сообщение с деталями мероприятия, чтобы отобразить изменение статуса регистрации
         if context.user_data.get("viewing_event_details"):
@@ -750,49 +777,63 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
 
 
 async def handle_profile_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    query = update.callback_query
-    await query.answer()
-    data = query.data
-    page = context.user_data.get("profile_city_page", 0)
-    if data.startswith("city:"):
-        city = data.split(":", 1)[1]
-        # Если город уже выбран, убираем его из выбранных
-        if context.user_data.get("pending_profile_city") == city:
-            context.user_data.pop("pending_profile_city", None)
-            await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(page=page))
-        else:
-            context.user_data["pending_profile_city"] = city
-            user_id = query.from_user.id
-            db.update_user_city(user_id, city)
-            profile_info = await get_profile_info(user_id)
-            try:
-                await query.message.reply_markdown_v2(
-                    f"✅ Ваш город успешно обновлен\\!\n\n{profile_info}",
-                    reply_markup=get_profile_menu_keyboard()
-                )
-                await query.message.delete()
-            except Exception as e:
-                logger.error(f"Ошибка при обновлении сообщения после выбора города: {e}")
-            return PROFILE_MENU
-    elif data.startswith("city_next:") or data.startswith("city_prev:"):
-        try:
-            page = int(data.split(":", 1)[1])
-        except ValueError:
-            page = 0
-        if data.startswith("city_next:"):
-            page += 1
-        else:
+    text = update.message.text
+    user_id = update.effective_user.id
+    page = context.user_data.get("city_page", 0)
+
+    if text == "❌ Отмена":
+        await update.message.reply_text(
+            "Изменение города отменено.",
+            reply_markup=get_profile_menu_keyboard()
+        )
+        # Очищаем временные данные
+        context.user_data.pop("city_page", None)
+        return PROFILE_MENU
+
+    elif text == "⬅️ Назад":
+        if page > 0:
             page -= 1
-        context.user_data["profile_city_page"] = page
-        selected = [context.user_data["pending_profile_city"]] if "pending_profile_city" in context.user_data else []
-        await query.edit_message_reply_markup(reply_markup=get_city_selection_keyboard(selected_cities=selected, page=page))
+            context.user_data["city_page"] = page
+            await update.message.reply_text(
+                "Выберите город:",
+                reply_markup=get_city_selection_keyboard(page=page)
+            )
         return PROFILE_CITY_SELECTION
-    elif data == "done_cities":
-        if not context.user_data.get("pending_profile_city"):
-            await query.answer("Пожалуйста, выберите город перед тем как продолжить")
-            return PROFILE_CITY_SELECTION
-        await query.edit_message_text("Выберите город из списка.")
+
+    elif text == "Вперед ➡️":
+        if (page + 1) * 3 < len(CITIES):  # 3 - это page_size
+            page += 1
+            context.user_data["city_page"] = page
+            await update.message.reply_text(
+                "Выберите город:",
+                reply_markup=get_city_selection_keyboard(page=page)
+            )
         return PROFILE_CITY_SELECTION
+
+    # Обработка выбора города
+    for city in CITIES:
+        if text.startswith(city):
+            # Получаем старый город из базы данных
+            user = db.get_user(user_id)
+            old_city = escape_markdown_v2(user.get("city", "Неизвестно"))
+            escaped_city = escape_markdown_v2(city)
+            
+            # Сразу обновляем город в базе данных
+            db.update_user_city(user_id, city)
+            
+            await update.message.reply_markdown_v2(
+                f"✅ Ваш город успешно изменен с {old_city} на {escaped_city}\\!",
+                reply_markup=get_profile_menu_keyboard()
+            )
+            
+            # Очищаем временные данные
+            context.user_data.pop("city_page", None)
+            return PROFILE_MENU
+
+    await update.message.reply_text(
+        "Пожалуйста, используйте кнопки для выбора города.",
+        reply_markup=get_city_selection_keyboard(page=page)
+    )
     return PROFILE_CITY_SELECTION
 
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
