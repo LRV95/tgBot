@@ -23,7 +23,7 @@ from bot.handlers.admin import (admin_command, load_excel, set_admin, set_modera
                                 moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users,
                                 moderator_handle_event_code)
 
-from bot.handlers.user import (handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
+from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
                                handle_profile_tag_selection, handle_events_callbacks,
                                handle_registration_city_selection, handle_events, handle_profile_city_selection,
@@ -74,20 +74,25 @@ class VolunteerBot:
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)
                 ],
-                # Добавлен обработчик для текстового сообщения "Выход" в состоянии GUEST_HOME
                 GUEST_HOME: [
-                    MessageHandler(filters.Regex("^(Выход)$"), global_main_menu_handler),
-                    CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|events_next:.*|events_prev:.*|back_to_menu|view_event:.*|share_event:.*|show_filters|filter_tag:.*|back_to_events|unregister_event:.*)$")
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_events_callbacks)
+                ],
+                EVENT_DETAILS: [
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_details)
                 ],
                 WAIT_FOR_EMPLOYEE_NUMBER: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)
                 ],
                 REGISTRATION_CITY_SELECTION: [
-                    CallbackQueryHandler(handle_registration_city_selection, pattern="^(city:.*|city_next:.*|city_prev:.*|done_cities)$")
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_city_selection)
                 ],
                 REGISTRATION_TAG_SELECTION: [
-                    CallbackQueryHandler(handle_registration_tag_selection, pattern="^(tag:.*|done_tags)$")
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_tag_selection)
                 ],
                 WAIT_FOR_PROFILE_UPDATE: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
@@ -108,9 +113,6 @@ class VolunteerBot:
                 MODERATION_MENU: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderation_menu_selection)
-                ],
-                EVENT_DETAILS: [
-                    CallbackQueryHandler(handle_events_callbacks, pattern="^(register_event:.*|unregister_event:.*|back_to_events|share_event:.*)$")
                 ],
                 REDEEM_CODE: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),

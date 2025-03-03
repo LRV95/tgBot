@@ -79,10 +79,12 @@ def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
-def get_events_keyboard(events, page=0, page_size=2, total_count=0, registered_events=None):
+def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_events=None):
     if registered_events is None:
         registered_events = []
     buttons = []
+    
+    # Добавляем кнопки для каждого мероприятия
     for event in events:
         name = ""
         if event.get("tags"):
@@ -94,80 +96,59 @@ def get_events_keyboard(events, page=0, page_size=2, total_count=0, registered_e
         if not name:
             name = f"Мероприятие #{event['id']}"
 
-        # Кнопка с названием мероприятия для просмотра деталей
+        # Добавляем статус регистрации к названию
         text = f"✨ {name}"
         if str(event['id']) in registered_events:
             text += " ✅"
-        buttons.append([InlineKeyboardButton(text, callback_data=f"view_event:{event['id']}")])
+        buttons.append([text])
 
-        # Кнопка с датой и временем
-        time_text = f"🕒 {event['event_date']} {event['start_time']}"
-        buttons.append([InlineKeyboardButton(time_text, callback_data=f"view_event:{event['id']}")])
-
-        # Кнопка с городом
-        location_text = f"📍 {event['city']}"
-        buttons.append([InlineKeyboardButton(location_text, callback_data=f"view_event:{event['id']}")])
-
-        # Кнопка для регистрации/отмены регистрации
-        if str(event['id']) in registered_events:
-            buttons.append(
-                [InlineKeyboardButton("❌ Отменить регистрацию", callback_data=f"unregister_event:{event['id']}")])
-        else:
-            buttons.append(
-                [InlineKeyboardButton("✅ Зарегистрироваться", callback_data=f"register_event:{event['id']}")])
-
-    keyboard = buttons
-    total_pages = (total_count + page_size - 1) // page_size
+    # Добавляем кнопки навигации на отдельной строке
     nav_buttons = []
     if page > 0:
-        nav_buttons.append(InlineKeyboardButton("<<", callback_data=f"events_prev:{page}"))
-    if page < total_pages - 1:
-        nav_buttons.append(InlineKeyboardButton(">>", callback_data=f"events_next:{page}"))
+        nav_buttons.append("⬅️ Назад")
+    if page < (total_count + page_size - 1) // page_size - 1:
+        nav_buttons.append("Вперед ➡️")
     if nav_buttons:
-        keyboard.append(nav_buttons)
+        buttons.append(nav_buttons)
 
-    # Добавляем кнопку фильтров
-    keyboard.append([InlineKeyboardButton("🔍 Фильтры", callback_data="show_filters")])
+    # Добавляем фильтры и выход на последней строке
+    buttons.append(["🔍 Фильтры", "❌ Выход"])
 
-    # Добавляем кнопку возврата в главное меню
-    keyboard.append([InlineKeyboardButton("Выход", callback_data="back_to_menu")])
-
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_events_filter_keyboard(selected_tag=None):
     """Создает клавиатуру для фильтрации мероприятий по тегам."""
     from bot.constants import TAGS
 
-    keyboard = []
+    buttons = []
     # Добавляем кнопки для каждого тега
     for tag in TAGS:
         text = f"{tag} {'✓' if tag == selected_tag else ''}"
-        keyboard.append([InlineKeyboardButton(text, callback_data=f"filter_tag:{tag}")])
+        buttons.append([text])
 
     # Добавляем кнопку "Все мероприятия"
-    keyboard.append([InlineKeyboardButton("Все мероприятия", callback_data="filter_tag:all")])
+    buttons.append(["Все мероприятия"])
+    buttons.append(["❌ Отмена"])
 
-    # Убрана кнопка возврата к списку, чтобы не требовалось её нажимать
-
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 
 def get_event_details_keyboard(event_id, is_registered=False):
     """Создает клавиатуру для детального просмотра мероприятия."""
-    keyboard = []
+    buttons = []
 
     # Кнопка регистрации/отмены регистрации
     if is_registered:
-        keyboard.append([InlineKeyboardButton("❌ Отменить регистрацию", callback_data=f"unregister_event:{event_id}")])
+        buttons.append(["❌ Отменить регистрацию"])
     else:
-        keyboard.append([InlineKeyboardButton("✅ Зарегистрироваться", callback_data=f"register_event:{event_id}")])
+        buttons.append(["✅ Зарегистрироваться"])
 
     # Кнопка для того, чтобы поделиться мероприятием
-    keyboard.append([InlineKeyboardButton("📤 Поделиться", callback_data=f"share_event:{event_id}")])
+    buttons.append(["📤 Поделиться"])
+    buttons.append(["⬅️ Назад к списку"])
+    buttons.append(["❌ Выход"])
 
-    # Убрана кнопка возврата к списку ("🔙 Назад к списку"), чтобы не требовалось её нажимать
-
-    return InlineKeyboardMarkup(keyboard)
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 
 def get_ai_chat_keyboard():
