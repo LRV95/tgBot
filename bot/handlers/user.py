@@ -27,68 +27,25 @@ def escape_markdown_v2(text):
     return ''.join(f'\\{char}' if char in escape_chars else char for char in str(text))
 
 def format_event_details(event):
-    """Форматирует детальную информацию о мероприятии."""
-    # Получаем название мероприятия из тегов
-    name = ""
-    description = ""
-    if event.get("tags"):
-        parts = event["tags"].split(";")
-        for part in parts:
-            if "Название:" in part:
-                name = part.split("Название:")[1].strip()
-            elif "Описание:" in part:
-                description = part.split("Описание:")[1].strip()
-    
-    if not name:
-        name = f"Мероприятие #{event['id']}"
-    
-    # Форматируем сообщение
-    message = (
-        f"*🎯 {escape_markdown_v2(name)}*\n\n"
-        f"📅 *Дата:* {escape_markdown_v2(event['event_date'])}\n"
-        f"🕒 *Время:* {escape_markdown_v2(event['start_time'])}\n"
-        f"📍 *Город:* {escape_markdown_v2(event['city'])}\n"
-        f"👤 *Организатор:* {escape_markdown_v2(event['creator'])}\n"
-        f"👥 *Количество участников:* {escape_markdown_v2(str(event['participants_count']))}\n"
-        f"🏆 *Баллы за участие:* {escape_markdown_v2(str(event['participation_points']))}\n"
-    )
-    
-    if description:
-        message += f"\n📝 *Описание:*\n{escape_markdown_v2(description)}\n"
-    
-    return message
+    """Форматирует детали мероприятия для отображения."""
+    if not event:
+        return "Информация о мероприятии недоступна"
 
-def create_shareable_event_message(event):
-    """Создает текстовое сообщение о мероприятии для отправки другим пользователям."""
-    # Получаем название мероприятия из тегов
-    name = ""
-    description = ""
-    if event.get("tags"):
-        parts = event["tags"].split(";")
-        for part in parts:
-            if "Название:" in part:
-                name = part.split("Название:")[1].strip()
-            elif "Описание:" in part:
-                description = part.split("Описание:")[1].strip()
-    
-    if not name:
-        name = f"Мероприятие #{event['id']}"
-    
-    # Форматируем сообщение в обычном тексте (без Markdown)
-    message = (
-        f"🎯 {name}\n\n"
-        f"📅 Дата: {event['event_date']}\n"
-        f"🕒 Время: {event['start_time']}\n"
-        f"📍 Город: {event['city']}\n"
-        f"👤 Организатор: {event['creator']}\n"
-        f"👥 Количество участников: {event['participants_count']}\n"
-        f"🏆 Баллы за участие: {event['participation_points']}\n"
-    )
-    
-    if description:
-        message += f"\n📝 Описание:\n{description}\n"
-    
-    return message
+    try:
+        # Форматируем сообщение с проверкой на существование полей
+        message = f"*{escape_markdown_v2(event.get('name', 'Без названия'))}*\n\n"
+        message += f"📅 Дата: {escape_markdown_v2(event.get('event_date', 'Не указана'))}\n"
+        message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
+        message += f"📍 Город: {escape_markdown_v2(event.get('city', 'Не указан'))}\n"
+        message += f"👥 Организатор: {escape_markdown_v2(event.get('creator', 'Не указан'))}\n"
+        message += f"\n📝 Описание: {escape_markdown_v2(event.get('description', 'Не указано'))}\n"
+        message += f"\n💰 Баллы за участие: {event.get('participation_points', 0)}\n"
+        message += f"👥 Количество участников: {event.get('participants_count', 0)}\n"
+
+        return message
+    except Exception as e:
+        logger.error(f"Ошибка при форматировании деталей мероприятия: {e}")
+        return "Ошибка при отображении информации о мероприятии"
 
 def format_profile_message(user):
     """Форматирует сообщение профиля пользователя с информацией о бонусах."""
@@ -100,16 +57,9 @@ def format_profile_message(user):
             try:
                 event = db.get_event_by_id(int(event_id))
                 if event:
-                    name = ""
-                    if event.get("tags"):
-                        parts = event["tags"].split(";")
-                        for part in parts:
-                            if "Название:" in part:
-                                name = part.split("Название:")[1].strip()
-                                break
-                    if not name:
-                        name = f"Мероприятие #{event['id']}"
-                    registered_events.append(f"• {escape_markdown_v2(name)} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)")
+                    registered_events.append(
+                        f"• {escape_markdown_v2(event['name'])} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)"
+                    )
             except:
                 continue
 
@@ -148,7 +98,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     user_role = user.get("role", "user")
 
-    if text == "Модерация":
+    if text == "Модерация" and user_role in ["admin", "moderator"]:
         from bot.handlers.admin import moderation_menu
         return await moderation_menu(update, context)
 
@@ -747,66 +697,67 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
 
 
 async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод кода мероприятия."""
     user_id = update.effective_user.id
-    entered_code = update.message.text.strip().upper()
     user = db.get_user(user_id)
     if not user:
-        await update.message.reply_text("Ошибка: профиль не найден.")
+        await update.message.reply_text("❌ Ошибка: пользователь не найден")
         return VOLUNTEER_HOME
 
-    reg_str = user.get("registered_events", "")
-    # Теперь регистрации хранятся как "event_id" или "event_id:redeemed"
-    registrations = [e.strip() for e in reg_str.split(",") if e.strip()]
-    found = False
-    new_registrations = []
-    awarded_points = 0
-    messages = []
+    entered_code = update.message.text.strip()
+    
+    try:
+        # Ищем мероприятие по коду
+        events = db.get_all_events()
+        event = next((e for e in events if e.get('code', '') == entered_code), None)
+        
+        if not event:
+            await update.message.reply_text(
+                "❌ Неверный код мероприятия. Пожалуйста, проверьте код и попробуйте снова.",
+                reply_markup=get_volunteer_home_keyboard()
+            )
+            return VOLUNTEER_HOME
 
-    for reg in registrations:
-        parts = reg.split(":")
-        event_id = parts[0]
-        redeemed = (len(parts) > 1 and parts[1] == "redeemed")
-        if not redeemed:
-            event = db.get_event_by_id(int(event_id))
-            if event:
-                # Извлекаем код мероприятия из поля tags
-                code_from_event = ""
-                if event.get("tags"):
-                    for part in event["tags"].split(";"):
-                        if "Код:" in part:
-                            code_from_event = part.split("Код:")[1].strip().upper()
-                            break
-                # Если введённый код совпадает с кодом мероприятия
-                if code_from_event == entered_code:
-                    points = event.get("participants_count", 5)
-                    awarded_points += points
-                    messages.append(f"За мероприятие {event_id} начислено {points} баллов.")
-                    # Помечаем регистрацию как использованную
-                    new_registrations.append(f"{event_id}:redeemed")
-                    found = True
-                else:
-                    new_registrations.append(reg)
-            else:
-                new_registrations.append(reg)
-        else:
-            new_registrations.append(reg)
+        # Проверяем, не зарегистрирован ли уже пользователь
+        registered_events = user.get("registered_events", "").split(",")
+        registered_events = [e.strip() for e in registered_events if e.strip()]
+        
+        if str(event['id']) in registered_events:
+            await update.message.reply_text(
+                "❌ Вы уже зарегистрированы на это мероприятие.",
+                reply_markup=get_volunteer_home_keyboard()
+            )
+            return VOLUNTEER_HOME
 
-    if not found:
-        await update.message.reply_text("Код не найден или уже использован для всех ваших мероприятий.")
+        # Регистрируем пользователя на мероприятие
+        registered_events.append(str(event['id']))
+        db.update_user_registered_events(user_id, ",".join(registered_events))
+        
+        # Обновляем количество участников
+        db.increment_event_participants(event['id'])
+        
+        # Начисляем баллы
+        points = event.get('participation_points', 5)
+        current_score = user.get('score', 0)
+        db.update_user_score(user_id, current_score + points)
+        
+        await update.message.reply_markdown(
+            f"✅ *Успешная регистрация!*\n\n"
+            f"Мероприятие: *{escape_markdown_v2(event['name'])}*\n"
+            f"Начислено баллов: *{points}*\n"
+            f"Ваш текущий баланс: *{current_score + points}* баллов",
+            reply_markup=get_volunteer_home_keyboard()
+        )
+        
         return VOLUNTEER_HOME
-
-    db.update_user_registered_events(user_id, ",".join(new_registrations))
-
-    # Начисляем баллы пользователю
-    new_score = user.get("score", 0) + awarded_points
-    with db.connect() as conn:
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET score = ? WHERE id = ?", (new_score, user_id))
-        conn.commit()
-
-    message_text = "\n".join(messages) + f"\nВаш новый баланс: {new_score} баллов."
-    await update.message.reply_text(message_text)
-    return VOLUNTEER_HOME
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке кода мероприятия: {e}")
+        await update.message.reply_text(
+            "❌ Произошла ошибка при обработке кода. Пожалуйста, попробуйте позже.",
+            reply_markup=get_volunteer_home_keyboard()
+        )
+        return VOLUNTEER_HOME
 
 async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     employee_number_str = update.message.text.strip()
@@ -846,18 +797,6 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
             reply_markup=get_volunteer_home_keyboard()
         )
         return VOLUNTEER_HOME
-
-    if text == "📤 Поделиться":
-        event = db.get_event_by_id(int(event_id))
-        if not event:
-            await update.message.reply_text("Мероприятие не найдено")
-            return GUEST_HOME
-
-        # Создаем сообщение для отправки
-        shareable_message = create_shareable_event_message(event)
-        await update.message.reply_text("📤 Вот сообщение, которым вы можете поделиться с друзьями:")
-        await update.message.reply_text(shareable_message)
-        return EVENT_DETAILS
 
     elif text == "⬅️ Назад к списку":
         context.user_data.pop("current_event_id", None)

@@ -2,6 +2,7 @@ import sqlite3
 import os
 import logging
 from contextlib import contextmanager
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -55,29 +56,19 @@ class Database:
                 ''')
 
                 cursor.execute('''
-                    CREATE TABLE IF NOT EXISTS projects (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        name TEXT,
-                        curator TEXT,
-                        phone_number TEXT,
-                        email TEXT,
-                        description TEXT,
-                        tags TEXT
-                    )
-                ''')
-
-                cursor.execute('''
                     CREATE TABLE IF NOT EXISTS events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        project_id INTEGER,
-                        event_date TEXT,
-                        start_time TEXT,
-                        city TEXT DEFAULT '',
-                        creator TEXT,
-                        participants_count INTEGER DEFAULT 0,
-                        participation_points INTEGER DEFAULT 5,
-                        tags TEXT,
-                        FOREIGN KEY (project_id) REFERENCES projects(id)
+                        name TEXT NOT NULL,
+                        event_date TEXT NOT NULL,
+                        start_time TEXT NOT NULL,
+                        city TEXT NOT NULL,
+                        creator TEXT NOT NULL,
+                        description NOT NULL,
+                        participation_points INTEGER DEFAULT 5 NOT NULL,
+                        participants_count INTEGER DEFAULT 0 NOT NULL,
+                        tags TEXT NOT NULL,
+                        code TEXT NOT NULL,
+                        owner TEXT NOT NULL
                     )
                 ''')
 
@@ -86,36 +77,21 @@ class Database:
             logger.error(f"Ошибка при создании таблиц: {e}")
             raise DatabaseError(f"Ошибка при создании таблиц: {e}")
 
-    def _format_project(self, row):
-        return {
-            "id": row[0],
-            "name": row[1],
-            "curator": row[2],
-            "phone_number": row[3],
-            "email": row[4],
-            "description": row[5],
-            "tags": row[6]
-        }
-
     def _format_event(self, row):
         return {
             "id": row[0],
-            "project_id": row[1],
+            "name": row[1],
             "event_date": row[2],
             "start_time": row[3],
             "city": row[4],
             "creator": row[5],
-            "participants_count": row[6],
+            "description": row[6],
             "participation_points": row[7],
-            "tags": row[8]
+            "participants_count": row[8],
+            "tags": row[9],
+            "code": row[10],
+            "owner": row[11]
         }
-
-    def get_all_projects(self):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM projects")
-            rows = cursor.fetchall()
-            return [self._format_project(row) for row in rows]
 
     def get_all_events(self):
         with self.connect() as conn:
@@ -124,35 +100,54 @@ class Database:
             rows = cursor.fetchall()
             return [self._format_event(row) for row in rows]
 
-    def add_project(self, name, curator, phone_number, email, description, tags=""):
+    def add_event(self, name, event_date, start_time, city, creator, description, participation_points, tags, code, owner=""):
+        """Добавляет новое мероприятие в базу данных."""
+        # Валидация обязательных полей
+        if not all([name, event_date, start_time, city, creator, description, participation_points, tags, code, owner]):
+            raise ValueError("Отсутствуют обязательные поля")
+
+        # Валидация даты и времени
+        try:
+            datetime.strptime(event_date, "%Y-%m-%d")
+            datetime.strptime(start_time, "%H:%M")
+        except ValueError as e:
+            raise ValueError(f"Неверный формат даты или времени: {str(e)}")
+
+        # Валидация числовых значений
+        if int(participation_points) < 0:
+            raise ValueError("Баллы должны быть неотрицательными")
+
         with self.connect() as conn:
             cursor = conn.cursor()
             try:
+                # Проверяем уникальность кода мероприятия, если он указан
+                if code:
+                    cursor.execute("SELECT id FROM events WHERE code = ?", (code,))
+                    if cursor.fetchone():
+                        raise sqlite3.IntegrityError("Мероприятие с таким кодом уже существует")
+
+                participants_count = 0
                 cursor.execute('''
-                    INSERT INTO projects (name, curator, phone_number, email, description, tags)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (name, curator, phone_number, email, description, tags))
+                    INSERT INTO events (
+                        name, event_date, start_time, city, creator, 
+                        description, participation_points, participants_count, 
+                        tags, code, owner
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    name, event_date, start_time, city, creator,
+                    description, participation_points, participants_count,
+                    tags, code, owner
+                ))
                 conn.commit()
+                return cursor.lastrowid
             except sqlite3.IntegrityError as e:
                 conn.rollback()
-                raise e
-
-    def add_event(self, name, curator, phone_number, email, description, tags=""):
-        self.add_project(name, curator, phone_number, email, description, tags)
-
-    def add_event_detail(self, project_id, event_date, start_time, participants_count, participation_points, creator,
-                         tags="", city=""):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            try:
-                cursor.execute('''
-                    INSERT INTO events (project_id, event_date, start_time, city, creator, participants_count, participation_points, tags)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (project_id, event_date, start_time, city, creator, participants_count, participation_points, tags))
-                conn.commit()
-            except sqlite3.IntegrityError as e:
+                raise DatabaseError(f"Ошибка при добавлении мероприятия: {str(e)}")
+            except Exception as e:
                 conn.rollback()
-                raise e
+                logger.error(f"Неожиданная ошибка при добавлении мероприятия: {e}")
+                raise DatabaseError(f"Неожиданная ошибка при добавлении мероприятия: {str(e)}")
 
     def get_user(self, user_id):
         """Получает информацию о пользователе."""
@@ -247,35 +242,10 @@ class Database:
                 for row in rows
             ]
 
-    def search_projects_by_tag(self, tag):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM projects WHERE tags LIKE ? LIMIT 5", (f"%{tag}%",))
-            rows = cursor.fetchall()
-            return [self._format_project(row) for row in rows]
-
-    def search_projects_by_name(self, name):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM projects WHERE name LIKE ? LIMIT 5", (f"%{name}%",))
-            rows = cursor.fetchall()
-            return [self._format_project(row) for row in rows]
-
     def search_events_by_tag(self, tag):
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM events WHERE tags LIKE ? LIMIT 5", (f"%{tag}%",))
-            rows = cursor.fetchall()
-            return [self._format_event(row) for row in rows]
-
-    def search_events_by_project_name(self, project_name):
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute('''
-                SELECT e.* FROM events e
-                JOIN projects p ON e.project_id = p.id
-                WHERE p.name LIKE ? LIMIT 5
-            ''', (f"%{project_name}%",))
             rows = cursor.fetchall()
             return [self._format_event(row) for row in rows]
 
@@ -348,14 +318,17 @@ class Database:
             if event:
                 return {
                     "id": event[0],
-                    "project_id": event[1],
+                    "name": event[1],
                     "event_date": event[2],
                     "start_time": event[3],
                     "city": event[4],
                     "creator": event[5],
-                    "participants_count": event[6],
+                    "description": event[6],
                     "participation_points": event[7],
-                    "tags": event[8]
+                    "participants_count": event[8],
+                    "tags": event[9],
+                    "code": event[10],
+                    "owner": event[11]
                 }
             return None
 

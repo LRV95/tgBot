@@ -6,22 +6,23 @@ from telegram.ext import Application, CommandHandler, MessageHandler, Conversati
 from config import TOKEN, ADMIN_ID
 from bot.handlers.common import start, cancel
 
-from bot.states import (MAIN_MENU, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU,
+from bot.states import (MAIN_MENU, MODERATOR_EVENT_TAGS, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU,
                         WAIT_FOR_PROFILE_UPDATE, REGISTRATION_TAG_SELECTION, PROFILE_TAG_SELECTION,
                         WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION,
                         PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY,
                         MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
-                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE, WAIT_FOR_EMPLOYEE_NUMBER)
+                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE, WAIT_FOR_EMPLOYEE_NUMBER,
+                        MODERATOR_EVENT_CREATOR, MODERATOR_EVENT_PARTICIPATION_POINTS)
 
-from bot.handlers.admin import (admin_command, load_excel, set_admin, set_moderator, delete_user, find_user_id,
+from bot.handlers.admin import (admin_command, load_excel, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name, find_users_email, load_projects_csv, process_csv_document,
                                 load_events_csv, process_events_csv_document, moderation_menu,
                                 handle_moderation_menu_selection, moderator_create_event_start, moderator_handle_event_name,
                                 moderator_handle_event_date, moderator_handle_event_time, moderator_handle_event_city,
                                 moderator_handle_event_description, moderator_confirm_event, moderator_view_events,
                                 moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users,
-                                moderator_handle_event_code)
+                                moderator_handle_event_code, moderator_handle_event_participation_points)
 
 from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
@@ -111,8 +112,10 @@ class VolunteerBot:
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_city_selection)
                 ],
                 MODERATION_MENU: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderation_menu_selection)
+                    MessageHandler(
+                        filters.TEXT & ~filters.COMMAND,
+                        handle_moderation_menu_selection
+                    )
                 ],
                 REDEEM_CODE: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
@@ -134,21 +137,33 @@ class VolunteerBot:
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_city)
                 ],
-                MODERATOR_SEARCH_REGISTERED_USERS: [
+                MODERATOR_EVENT_CREATOR: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_search_event_users)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_creator)
                 ],
                 MODERATOR_EVENT_DESCRIPTION: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)
                 ],
-                MODERATOR_EVENT_CONFIRMATION: [
+                MODERATOR_EVENT_PARTICIPATION_POINTS: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_confirm_event)
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_participation_points)
+                ],
+                MODERATOR_EVENT_TAGS: [
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_tags)
                 ],
                 MODERATOR_EVENT_CODE: [
                     MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_code)
+                ],
+                MODERATOR_SEARCH_REGISTERED_USERS: [
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_search_event_users)
+                ],
+                MODERATOR_EVENT_CONFIRMATION: [
+                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_confirm_event)
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]
