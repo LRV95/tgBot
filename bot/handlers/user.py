@@ -10,13 +10,15 @@ from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, ge
                     get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
                     get_events_filter_keyboard, get_event_details_keyboard, get_mod_menu_keyboard)
 
-from database.db import Database
+from database import UserModel, EventModel
 from services.ai_service import ContextRouterAgent
 from config import ADMIN_ID
 from bot.constants import CITIES, TAGS
 
-db = Database()
 logger = logging.getLogger(__name__)
+
+user_db = UserModel()
+event_db = EventModel()
 
 def escape_markdown_v2(text):
     """Экранирует специальные символы для Markdown V2."""
@@ -54,7 +56,7 @@ def format_profile_message(user):
         event_ids = [e.strip() for e in user["registered_events"].split(",") if e.strip()]
         for event_id in event_ids:
             try:
-                event = db.get_event_by_id(int(event_id))
+                event = event_db.get_event_by_id(int(event_id))
                 if event:
                     registered_events.append(
                         f"• {escape_markdown_v2(event['name'])} \\({escape_markdown_v2(event['event_date'])} {escape_markdown_v2(event['start_time'])}\\)"
@@ -89,7 +91,7 @@ def format_profile_message(user):
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     user_role = user.get('role', 'user') if user else 'user'
 
     # Добавляем логирование для отладки
@@ -154,11 +156,11 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
     
     if text == "Профиль":
-        user = db.get_user(update.effective_user.id)
+        user = user_db.get_user(update.effective_user.id)
         if not user:
             await update.message.reply_text("❌ Ошибка: профиль не найден")
             return MAIN_MENU
@@ -191,7 +193,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_dashboard_keyboard())
         return VOLUNTEER_DASHBOARD
     elif text == "Бонусы":
-        user = db.get_user(update.effective_user.id)
+        user = user_db.get_user(update.effective_user.id)
         if not user:
             await update.message.reply_text("❌ Ошибка: профиль не найден")
             return MAIN_MENU
@@ -226,7 +228,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     role = "user"
     # Сохраняем пользователя (только имя, telegram_tag и роль)
     try:
-        db.save_user(id=user_id, first_name=first_name, telegram_tag=telegram_tag, role=role)
+        user_db.save_user(id=user_id, first_name=first_name, telegram_tag=telegram_tag, role=role)
     except Exception as e:
         await update.message.reply_text("Произошла ошибка при регистрации. Попробуйте позже.")
         return MAIN_MENU
@@ -273,7 +275,7 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
     if text.split(" ✔️")[0] in CITIES:  # Убираем маркер выбора, если он есть
         city = text.split(" ✔️")[0]
         # Сохраняем город в БД
-        db.update_user_city(user_id, city)
+        user_db.update_user_city(user_id, city)
         # Переходим к выбору тегов
         await update.message.reply_text(
             f"Город '{city}' сохранён. Теперь выберите теги, которые вас интересуют:",
@@ -312,7 +314,7 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
             return REGISTRATION_TAG_SELECT
 
         # Сохраняем выбранные теги в БД
-        db.update_user_tags(user_id, ",".join(selected_tags))
+        user_db.update_user_tags(user_id, ",".join(selected_tags))
         # Завершаем регистрацию
         await update.message.reply_text(
             "Регистрация успешно завершена! Добро пожаловать!",
@@ -346,7 +348,7 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
 async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
     
     if text == "Изменить имя":
@@ -370,7 +372,7 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def get_profile_info(user_id: int) -> str:
     """Получает отформатированную информацию о профиле пользователя."""
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     if not user:
         return "❌ Ошибка: профиль не найден"
         
@@ -379,10 +381,10 @@ async def get_profile_info(user_id: int) -> str:
 
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     old_first_name = escape_markdown_v2(user.get("first_name", "Неизвестно"))
     new_first_name = escape_markdown_v2(update.message.text.strip())
-    db.update_first_name(user_id, update.message.text.strip())
+    user_db.update_first_name(user_id, update.message.text.strip())
     profile_info = await get_profile_info(user_id)
     await update.message.reply_markdown_v2(
         f"✅ Ваше имя успешно изменено с {old_first_name} на {new_first_name}\\!",
@@ -396,7 +398,7 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
     selected_tags = context.user_data.get("profile_tags", [])
     
     # Получаем текущие интересы пользователя из БД
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     old_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
 
     if text == "✅ Готово":
@@ -407,7 +409,7 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
             )
             return PROFILE_TAG_SELECT
 
-        db.update_user_tags(user_id, ",".join(selected_tags))
+        user_db.update_user_tags(user_id, ",".join(selected_tags))
         profile_info = await get_profile_info(user_id)
         
         # Форматируем старые и новые интересы для наглядного сравнения
@@ -476,31 +478,31 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
 
 async def handle_events(update, context) -> int:
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     page = context.user_data.get("events_page", 0)
     selected_tag = context.user_data.get("selected_tag", None)
 
     # Получаем мероприятия в зависимости от выбранного фильтра
     if selected_tag and selected_tag != "all":
         if user and user.get("city"):
-            events = db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
-            total_events = db.get_events_count_by_tag(selected_tag)
+            events = event_db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
+            total_events = event_db.get_events_count_by_tag(selected_tag)
             if not events:
-                events = db.get_events(limit=4, offset=page * 4)
-                total_events = db.get_events_count()
+                events = event_db.get_events(limit=4, offset=page * 4)
+                total_events = event_db.get_events_count()
         else:
-            events = db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
-            total_events = db.get_events_count_by_tag(selected_tag)
+            events = event_db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
+            total_events = event_db.get_events_count_by_tag(selected_tag)
     else:
         if user and user.get("city"):
-            events = db.get_events_by_city(user["city"], limit=4, offset=page * 4)
-            total_events = db.get_events_count_by_city(user["city"])
+            events = event_db.get_events_by_city(user["city"], limit=4, offset=page * 4)
+            total_events = event_db.get_events_count_by_city(user["city"])
             if not events:
-                events = db.get_events(limit=4, offset=page * 4)
-                total_events = db.get_events_count()
+                events = event_db.get_events(limit=4, offset=page * 4)
+                total_events = event_db.get_events_count()
         else:
-            events = db.get_events(limit=4, offset=page * 4)
-            total_events = db.get_events_count()
+            events = event_db.get_events(limit=4, offset=page * 4)
+            total_events = event_db.get_events_count()
 
     # Получаем список зарегистрированных мероприятий пользователя
     registered = []
@@ -532,7 +534,7 @@ async def handle_events(update, context) -> int:
 async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     current_events = context.user_data.get("current_events", [])
 
     if not current_events:
@@ -553,7 +555,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         if text == event_text:
             # Показываем детали мероприятия
             event_details = format_event_details(event)
-            is_registered = db.is_user_registered_for_event(user_id, str(event['id']))
+            is_registered = event_db.is_user_registered_for_event(user_id, str(event['id']))
             context.user_data["current_event_id"] = str(event['id'])
             await update.message.reply_markdown_v2(
                 event_details,
@@ -644,12 +646,12 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
     for city in CITIES:
         if text.startswith(city):
             # Получаем старый город из базы данных
-            user = db.get_user(user_id)
+            user = user_db.get_user(user_id)
             old_city = escape_markdown_v2(user.get("city", "Неизвестно"))
             escaped_city = escape_markdown_v2(city)
             
             # Сразу обновляем город в базе данных
-            db.update_user_city(user_id, city)
+            user_db.update_user_city(user_id, city)
             
             await update.message.reply_markdown_v2(
                 f"✅ Ваш город успешно изменен с {old_city} на {escaped_city}\\!",
@@ -674,7 +676,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         await update.message.reply_text("Функционал модерирования пользователей в разработке.")
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
-        user_record = db.get_user(update.effective_user.id)
+        user_record = user_db.get_user(update.effective_user.id)
         role = user_record.get("role") if user_record else "user"
         await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard(role=role))
         return MAIN_MENU
@@ -701,7 +703,7 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
         return VOLUNTEER_DASHBOARD
         
     try:
-        events = db.get_all_events()
+        events = event_db.get_all_events()
         found_event = None
         for event in events:
             if event.get("code") == text:
@@ -716,13 +718,13 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
             return EVENT_CODE_REDEEM
             
         # Проверяем, был ли зарегистрирован пользователь на мероприятие
-        if db.is_user_registered_for_event(user_id, str(found_event['id'])):
+        if event_db.is_user_registered_for_event(user_id, str(found_event['id'])):
             # Начисляем баллы
-            user = db.get_user(user_id)
+            user = user_db.get_user(user_id)
             points = found_event.get("participation_points", 0)
             current_score = user.get("score", 0)
-            db.update_user_score(user_id, current_score + points)
-            db.unregister_user_from_event(user_id, str(found_event['id']))
+            user_db.update_user_score(user_id, current_score + points)
+            user_db.unregister_user_from_event(user_id, str(found_event['id']))
             
             await update.message.reply_markdown(
                 f"Мероприятие: *{found_event['name']}*\n"
@@ -754,7 +756,7 @@ async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_T
         return PROFILE_EMPLOYEE_NUMBER
     employee_number = int(employee_number_str)
     # Обновляем данные пользователя с табельным номером
-    db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
+    user_db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
     await update.message.reply_text("Теперь выберите ваш город:", reply_markup=get_city_selection_keyboard())
     return REGISTRATION_CITY_SELECT
 
@@ -796,15 +798,15 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
 
     elif text == "✅ Зарегистрироваться":
         # Получаем информацию о пользователе и мероприятии
-        user = db.get_user(user_id)
-        event = db.get_event_by_id(int(event_id))
+        user = user_db.get_user(user_id)
+        event = event_db.get_event_by_id(int(event_id))
         
         if not event:
             await update.message.reply_text("❌ Мероприятие не найдено.")
             return VOLUNTEER_DASHBOARD
 
         # Проверяем, не зарегистрирован ли уже пользователь
-        if db.is_user_registered_for_event(user_id, event_id):
+        if event_db.is_user_registered_for_event(user_id, event_id):
             await update.message.reply_text("❌ Вы уже зарегистрированы на это мероприятие.")
             return EVENT_DETAILS
 
@@ -813,10 +815,10 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
             registered_events = user.get("registered_events", "").split(",")
             registered_events = [e.strip() for e in registered_events if e.strip()]
             registered_events.append(str(event_id))
-            db.update_user_registered_events(user_id, ",".join(registered_events))
-            
+            user_db.update_user_registered_events(user_id, ",".join(registered_events))
+
             # Увеличиваем счетчик участников
-            if not db.increment_event_participants_count(int(event_id)):
+            if not event_db.increment_event_participants_count(int(event_id)):
                 logger.error(f"Не удалось увеличить счетчик участников для мероприятия {event_id}")
             
             await update.message.reply_text(
@@ -831,8 +833,8 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
 
     elif text == "❌ Отменить регистрацию":
         # Получаем информацию о пользователе и мероприятии
-        user = db.get_user(user_id)
-        event = db.get_event_by_id(int(event_id))
+        user = user_db.get_user(user_id)
+        event = event_db.get_event_by_id(int(event_id))
         
         if not event:
             await update.message.reply_text("❌ Мероприятие не найдено.")
@@ -842,10 +844,10 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
             # Удаляем мероприятие из списка зарегистрированных
             registered_events = user.get("registered_events", "").split(",")
             registered_events = [e.strip() for e in registered_events if e.strip() and e != str(event_id)]
-            db.update_user_registered_events(user_id, ",".join(registered_events))
+            user_db.update_user_registered_events(user_id, ",".join(registered_events))
             
             # Уменьшаем счетчик участников
-            if not db.decrement_event_participants_count(int(event_id)):
+            if not event_db.decrement_event_participants_count(int(event_id)):
                 logger.error(f"Не удалось уменьшить счетчик участников для мероприятия {event_id}")
             
             await update.message.reply_text(

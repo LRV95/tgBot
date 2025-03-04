@@ -8,7 +8,8 @@ from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
 from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard
-from database.db import Database
+from config import ADMIN_ID
+from database import UserModel, EventModel
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
                     ADMIN_DELETE_USER, EVENT_CSV_UPLOAD, MOD_MENU, MOD_EVENT_NAME,
                     MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY, MOD_EVENT_DESCRIPTION,
@@ -19,12 +20,13 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-db = Database()
+user_db = UserModel()
+event_db = EventModel()
 
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /admin."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if user_record and user_record.get("role") == "admin":
         await update.message.reply_markdown_v2(
             "*👋 Привет, администратор\!* Доступные команды:\n"
@@ -47,37 +49,16 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_markdown_v2("*🚫 У вас нет доступа к командам администратора\\.*")
 
-async def load_excel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /load_excel."""
-    user = update.effective_user
-    user_record = db.get_user(user.id)
-    if not (user_record and user_record.get("role") == "admin"):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return
-    try:
-        workbook = openpyxl.load_workbook("./data/events.xlsx")
-        sheet = workbook.active
-        count = 0
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            name, date, time_value, location, curator, description, code, tags = row
-            if not name:
-                continue
-            db.add_project(name, curator, time_value, location, description, tags)
-            count += 1
-        await update.message.reply_markdown(f"*✅ Excel файл обработан успешно.* Добавлено проектов: _{count}_.")
-    except Exception as e:
-        await update.message.reply_markdown("*🚫 Произошла ошибка при обработке Excel файла.*")
-
 async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /set_admin."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not (user_record and user_record.get("role") == "admin"):
         await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
         return
     try:
         target_user_id = int(context.args[0])
-        db.update_user_role(target_user_id, "admin")
+        user_db.update_user_role(target_user_id, "admin")
         await update.message.reply_markdown(f"*✅ Пользователь {target_user_id} назначен администратором.*")
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /set_admin <user_id>*")
@@ -85,13 +66,13 @@ async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def set_moderator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /set_moderator."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not (user_record and user_record.get("role") == "admin"):
         await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
         return
     try:
         target_user_id = int(context.args[0])
-        db.update_user_role(target_user_id, "moderator")
+        user_db.update_user_role(target_user_id, "moderator")
         await update.message.reply_markdown(f"*✅ Пользователь {target_user_id} назначен модератором.*")
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /set_moderator <user_id>*")
@@ -99,13 +80,16 @@ async def set_moderator(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /delete_user."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not (user_record and user_record.get("role") in ["admin", "moderator"]):
         await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
         return
     try:
         target_user_id = int(context.args[0])
-        db.delete_user(target_user_id)
+        if target_user_id in ADMIN_ID:
+            await update.message.reply_markdown("*🚫 Вы не можете удалить администратора.*")
+            return
+        user_db.delete_user(target_user_id)
         await update.message.reply_markdown(f"*✅ Пользователь {target_user_id} удален.*")
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /delete_user <user_id>*")
@@ -114,7 +98,7 @@ async def find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /find_user_id."""
     try:
         target_user_id = int(context.args[0])
-        user = db.find_user_by_id(target_user_id)
+        user = user_db.find_user_by_id(target_user_id)
         if user is None:
             await update.message.reply_markdown("*❌ Пользователь не найден.*")
         else:
@@ -126,7 +110,7 @@ async def find_users_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /find_users_name."""
     try:
         name = " ".join(context.args)
-        users = db.find_users_by_name(name)
+        users = user_db.find_users_by_name(name)
         if not users:
             await update.message.reply_markdown("*❌ Пользователи не найдены.*")
         else:
@@ -137,64 +121,10 @@ async def find_users_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_markdown("*🚫 Ошибка при поиске пользователей по имени.*")
 
-async def find_users_email(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /find_users_email."""
-    try:
-        email = " ".join(context.args)
-        users = db.find_users_by_email(email)
-        if not users:
-            await update.message.reply_markdown("*❌ Пользователи не найдены.*")
-        else:
-            message = "*📧 Найденные пользователи:*\n"
-            for user in users:
-                message += f"ID: {user['id']}, Email: {user['email']}\n"
-            await update.message.reply_markdown(message)
-    except Exception:
-        await update.message.reply_markdown("*🚫 Ошибка при поиске пользователей по email.*")
-
-async def load_projects_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик команды /load_projects_csv."""
-    user = update.effective_user
-    user_record = db.get_user(user.id)
-    if not (user_record and user_record.get("role") == "admin"):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return MAIN_MENU
-    await update.message.reply_markdown("*📥 Пожалуйста, отправьте CSV файл с данными о проектах (расширение .csv).*")
-    return EVENT_CSV_IMPORT
-
-async def process_csv_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик загрузки CSV файла с проектами."""
-    try:
-        file = await context.bot.get_file(update.message.document.file_id)
-        data_folder = os.path.join(".", "data")
-        if not os.path.exists(data_folder):
-            os.makedirs(data_folder)
-        temp_path = os.path.join(data_folder, update.message.document.file_name)
-        await file.download_to_drive(custom_path=temp_path)
-        count = 0
-        with open(temp_path, newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                name = row.get("Проект")
-                curator = row.get("Ответственный")
-                phone_number = row.get("Телефон")
-                email = row.get("Почта")
-                description = row.get("Суть проекта")
-                tags = row.get("Теги", "")
-                if not name:
-                    continue
-                db.add_project(name, curator, phone_number, email, description, tags)
-                count += 1
-        os.remove(temp_path)
-        await update.message.reply_markdown(f"*✅ CSV файл обработан успешно.* Добавлено проектов: _{count}_.")
-    except Exception as e:
-        await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла.*")
-    return MAIN_MENU
-
 async def load_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /load_events_csv."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not (user_record and user_record.get("role") == "admin"):
         await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
         return MAIN_MENU
@@ -231,7 +161,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 
                 # Добавляем мероприятие в базу данных
                 try:
-                    db.add_event(
+                    event_db.add_event(
                         name=name,
                         event_date=event_date, 
                         start_time=start_time, 
@@ -257,7 +187,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
 
 async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if user_record and user_record.get("role") in ["admin"]:
         await update.message.reply_text("Меню администратора:", reply_markup=get_admin_menu_keyboard())
         return ADMIN_MENU
@@ -287,7 +217,7 @@ async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFA
         return EVENT_CSV_UPLOAD
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
-        user_record = db.get_user(update.effective_user.id)
+        user_record = user_db.get_user(update.effective_user.id)
         role = user_record.get("role") if user_record else "user"
         await update.message.reply_text(
             "Возвращаемся в главное меню.",
@@ -300,20 +230,20 @@ async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFA
 
 async def handle_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.text
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     if not user:
         await update.message.reply_text("Пользователь не найден.")
         return ADMIN_MENU
     if user.get("role") == "admin":
         await update.message.reply_text("Пользователь уже является администратором.")
         return ADMIN_MENU
-    db.update_user_role(user_id, "admin")
+    user_db.update_user_role(user_id, "admin")
     await update.message.reply_text("Пользователь успешно назначен администратором.")
     return ADMIN_MENU
 
 async def handle_moderator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.text
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     if not user:
         await update.message.reply_text("Пользователь не найден.")
         return ADMIN_MENU
@@ -323,23 +253,23 @@ async def handle_moderator_id(update: Update, context: ContextTypes.DEFAULT_TYPE
     if user.get("role") == "moderator":
         await update.message.reply_text("Пользователь уже является модератором.")
         return ADMIN_MENU
-    db.update_user_role(user_id, "moderator")
+    user_db.update_user_role(user_id, "moderator")
     await update.message.reply_text("Пользователь успешно назначен модератором.")
     return ADMIN_MENU
 
 async def handle_delete_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.text
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     if not user:
         await update.message.reply_text("Пользователь не найден.")
         return ADMIN_MENU
-    db.delete_user(user_id)
+    user_db.delete_user(user_id)
     await update.message.reply_text("Пользователь успешно удален.")
     return ADMIN_MENU
 
 async def handle_find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.text
-    user = db.get_user(user_id)
+    user = user_db.get_user(user_id)
     if not user:
         await update.message.reply_text("Пользователь не найден.")
         return ADMIN_MENU
@@ -348,7 +278,7 @@ async def handle_find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_find_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_name = update.message.text
-    users = db.find_users_by_name(user_name)
+    users = user_db.find_users_by_name(user_name)
     if users:
         await update.message.reply_text(f"Найдены пользователи: {users}")
     else:
@@ -375,7 +305,7 @@ async def handle_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if user_record and user_record.get("role") in ["admin", "moderator"]:
         await update.message.reply_text("Меню модерирования:", reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
@@ -407,7 +337,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
-        user_record = db.get_user(update.effective_user.id)
+        user_record = user_db.get_user(update.effective_user.id)
         role = user_record.get("role") if user_record else "user"
         await update.message.reply_text(
             "Возвращаемся в главное меню.",
@@ -425,7 +355,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
 async def moderator_create_event_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Запускает диалог создания мероприятия модератором."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для создания мероприятия.")
         return MAIN_MENU
@@ -516,7 +446,7 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
     event_code = context.user_data.get("event_code")
     owner = f"moderator:{user.id}"
     try:
-        db.add_event(
+        event_db.add_event(
             name=event_name,
             event_date=event_date,
             start_time=event_time,
@@ -541,17 +471,17 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
 async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Выводит список мероприятий, созданных модератором, с кнопками для просмотра зарегистрированных пользователей."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для просмотра мероприятий.")
         return MAIN_MENU
 
     # Для админа показываем все мероприятия, для модератора - только его
     if user_record.get("role") == "admin":
-        events = db.get_all_events()
+        events = event_db.get_all_events()
     else:
         owner_str = f"moderator:{user.id}"
-        events = [event for event in db.get_all_events() if event.get("owner") == owner_str]
+        events = [event for event in event_db.get_all_events() if event.get("owner") == owner_str]
 
     if not events:
         await update.message.reply_text("Нет доступных мероприятий.")
@@ -569,7 +499,7 @@ async def moderator_handle_view_event_users_callback(update: Update, context: Co
     query = update.callback_query
     await query.answer()
     event_id = query.data.split(":", 1)[1]
-    users = db.get_users_for_event(event_id)
+    users = event_db.get_users_for_event(event_id)
     if not users:
         await query.edit_message_text("На данном мероприятии нет зарегистрированных пользователей.")
     else:
@@ -582,17 +512,17 @@ async def moderator_handle_view_event_users_callback(update: Update, context: Co
 async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Выводит список мероприятий модератора с кнопками для удаления."""
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для удаления мероприятий.")
         return MAIN_MENU
 
     # Для админа показываем все мероприятия, для модератора - только его
     if user_record.get("role") == "admin":
-        events = db.get_all_events()
+        events = event_db.get_all_events()
     else:
         creator_str = f"moderator:{user.id}"
-        events = [event for event in db.get_all_events() if event.get("creator") == creator_str]
+        events = [event for event in event_db.get_all_events() if event.get("creator") == creator_str]
 
     if not events:
         await update.message.reply_text("Нет доступных мероприятий для удаления.")
@@ -615,13 +545,13 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
     
     # Проверяем права пользователя
     user = update.effective_user
-    user_record = db.get_user(user.id)
+    user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await query.edit_message_text("🚫 У вас нет прав на удаление мероприятий.")
         return MOD_MENU
 
     # Получаем информацию о мероприятии
-    event = db.get_event_by_id(event_id)
+    event = event_db.get_event_by_id(event_id)
     if not event:
         await query.edit_message_text("❌ Мероприятие не найдено.")
         return MOD_MENU
@@ -633,7 +563,7 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
 
     try:
         # Удаляем мероприятие
-        db.delete_event(event_id)
+        event_db.delete_event(event_id)
         await query.edit_message_text(f"✅ Мероприятие \"{event.get('name')}\" успешно удалено.")
     except Exception as e:
         logger.error(f"Ошибка при удалении мероприятия: {e}")
@@ -650,7 +580,7 @@ async def moderator_handle_search_event_users(update: Update, context: ContextTy
         return MOD_EVENT_USERS
 
     # Получаем информацию о мероприятии по его ID
-    event = db.get_event_by_id(event_id)
+    event = event_db.get_event_by_id(event_id)
     if not event:
         await update.message.reply_text("Мероприятие не найдено.")
         return MOD_MENU
@@ -665,7 +595,7 @@ async def moderator_handle_search_event_users(update: Update, context: ContextTy
     message += "\n\nЗарегистрированные пользователи:\n"
 
     # Получаем пользователей, зарегистрированных на мероприятие
-    users = db.get_users_for_event(event_id)
+    users = event_db.get_users_for_event(event_id)
     if not users:
         message += "Нет зарегистрированных пользователей."
     else:
@@ -679,7 +609,7 @@ async def moderator_search_event_users(update: Update, context: ContextTypes.DEF
     return MOD_EVENT_USERS
 
 async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    events = db.get_all_events()
+    events = event_db.get_all_events()
     if not events:
         await update.message.reply_text("Нет доступных мероприятий.")
         return MOD_MENU

@@ -20,13 +20,17 @@ from config import (
     MODEL_NAME,
     TEMPERATURE
 )
-from database.db import Database
+from database import UserModel, EventModel
+from database.core import Database
 
 logger = logging.getLogger(__name__)
 
 # Глобальные переменные для GigaChat
 access_token = None
 token_expires_at = 0
+
+user_db = UserModel()
+event_db = EventModel()
 
 def get_access_token():
     global access_token, token_expires_at
@@ -92,6 +96,7 @@ class AIAgent(ABC):
     @abstractmethod
     def process_query(self, query: str, user_id: int) -> str:
         pass
+
 class RecommendationAgent(AIAgent):
     # существующая логика для рекомендаций мероприятий
     def get_user_events(self, user_id: int):
@@ -99,6 +104,7 @@ class RecommendationAgent(AIAgent):
         if user and user.get("registered_events"):
             return [e.strip() for e in user["registered_events"].split(",") if e.strip()]
         return []
+
     def get_all_events(self):
         events = []
         with self.db.connect() as conn:
@@ -117,6 +123,7 @@ class RecommendationAgent(AIAgent):
                     "tags": row[8]
                 })
         return events
+
     def recommend_events(self, user_id: int) -> str:
         all_events = self.get_all_events()
         user_events = self.get_user_events(user_id)
@@ -141,6 +148,7 @@ class RecommendationAgent(AIAgent):
         )
         response = get_gigachat_response({"messages": [{"role": "user", "content": prompt}]})
         return response.strip()
+
     def process_query(self, query: str, user_id: int) -> str:
         rec_text = self.recommend_events(user_id)
         return rec_text.strip()
