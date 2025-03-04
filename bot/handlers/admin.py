@@ -39,11 +39,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• `/find_users_email <email>` \\- найти пользователей по email\n"
             "• `/delete_me` \\- удалить свой аккаунт\n"
             "• `/ai_query <query>` \\- обработать запрос через ИИ\n"
-            "• `/search_projects_tag <tag>` \\- поиск проектов по тегу\n"
-            "• `/search_projects_name <name>` \\- поиск проектов по названию\n"
             "• `/search_events_tag <tag>` \\- поиск мероприятий по тегу\n"
-            "• `/search_events_project <project name>` \\- поиск мероприятий по проекту\n"
-            "• `/load_projects_csv` \\- загрузить CSV с проектами\n"
             "• `/load_events_csv` \\- загрузить CSV с мероприятиями"
         )
     else:

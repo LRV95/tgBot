@@ -17,9 +17,8 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_CREATOR, MOD_EVENT_POINTS, ADMIN_SET_ADMIN,
                         ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME)
 
-from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, load_excel, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
-                                find_users_name, find_users_email, load_projects_csv, process_csv_document,
-                                load_events_csv, process_events_csv_document, moderation_menu,
+from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
+                                find_users_name,
                                 handle_moderation_menu_selection, moderator_create_event_start, moderator_handle_event_name,
                                 moderator_handle_event_date, moderator_handle_event_time, moderator_handle_event_city,
                                 moderator_handle_event_description, moderator_confirm_event, moderator_view_events,
@@ -181,26 +180,12 @@ class VolunteerBot:
             )
         )
         
-        csv_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("load_projects_csv", load_projects_csv)],
-            states={EVENT_CSV_IMPORT: [MessageHandler(filters.Document.FileExtension("csv"), process_csv_document)]},
-            fallbacks=[CommandHandler("cancel", cancel)]
-        )
-        self.application.add_handler(csv_conv_handler)
-        events_csv_conv_handler = ConversationHandler(
-            entry_points=[CommandHandler("load_events_csv", load_events_csv)],
-            states={EVENT_CSV_UPLOAD: [MessageHandler(filters.Document.FileExtension("csv"), process_events_csv_document)]},
-            fallbacks=[CommandHandler("cancel", cancel)]
-        )
-        self.application.add_handler(events_csv_conv_handler)
         self.application.add_handler(CommandHandler("admin", admin_required(admin_command)))
-        self.application.add_handler(CommandHandler("load_excel", admin_required(load_excel)))
         self.application.add_handler(CommandHandler("set_admin", admin_required(set_admin)))
         self.application.add_handler(CommandHandler("set_moderator", admin_required(set_moderator)))
         self.application.add_handler(CommandHandler("delete_user", admin_required(delete_user)))
         self.application.add_handler(CommandHandler("find_user_id", admin_required(find_user_id)))
         self.application.add_handler(CommandHandler("find_users_name", admin_required(find_users_name)))
-        self.application.add_handler(CommandHandler("find_users_email", admin_required(find_users_email)))
 
     def run(self):
         try:
