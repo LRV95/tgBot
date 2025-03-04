@@ -169,26 +169,22 @@ class Database:
             logger.info(f"Пользователь с id={user_id} не найден в БД")
             return None
 
-    def save_user(self, user_id, first_name=None, role="user", telegram_tag="", employee_number=None):
+    def save_user(self, id, first_name=None, telegram_tag=None, role="user"):
+        """
+        Сохраняет первичную информацию о пользователе в базу данных.
+        """
         try:
             with self.connect() as conn:
                 cursor = conn.cursor()
-                existing_user = self.get_user(user_id)
+                existing_user = self.get_user(id)
                 if existing_user:
-                    cursor.execute('''
-                        UPDATE users 
-                        SET first_name = ?,
-                            role = ?,
-                            telegram_tag = ?,
-                            employee_number = ?
-                        WHERE id = ?
-                    ''', (first_name, role, telegram_tag, employee_number, user_id))
+                    raise ValueError("Пользователь уже существует")
                 else:
                     cursor.execute('''
                         INSERT INTO users 
                         (id, first_name, telegram_tag, employee_number, role, score, registered_events, tags, city)
-                        VALUES (?, ?, ?, ?, ?, 0, '', '', '')
-                    ''', (user_id, first_name, telegram_tag, employee_number, role))
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (id, first_name, telegram_tag, "", role, 0, "", "", ""))
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Ошибка при сохранении пользователя: {e}")
@@ -258,6 +254,12 @@ class Database:
             conn.commit()
             updated_user = self.get_user(user_id)
             logger.info(f"Проверка обновления имени: {updated_user}")
+
+    def update_user_employee_number(self, user_id, employee_number):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE users SET employee_number = ? WHERE id = ?', (employee_number, user_id))
+            conn.commit()
 
     def update_user_city(self, user_id, new_city):
         with self.connect() as conn:

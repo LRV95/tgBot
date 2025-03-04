@@ -2,7 +2,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes, CallbackContext
 from config import ADMIN_ID
-from bot.states import MAIN_MENU
+from bot.states import ADMIN_MENU, MAIN_MENU
 from bot.keyboards import get_main_menu_keyboard
 from database.db import Database
 from bot.constants import CITIES, TAGS
@@ -20,25 +20,31 @@ def escape_markdown_v2(text):
 async def start(update: Update, context: CallbackContext):
     user_id = update.effective_user.id
     user = db.get_user(user_id)
+    first_name = update.effective_user.first_name
+    telegram_tag = update.effective_user.username if update.effective_user.username else ""
+    employee_number = None
+    role = "admin" if user_id in ADMIN_ID else "user"
 
     # Если пользователь входит в список администраторов
-    if user_id in ADMIN_ID:
+    if role == "admin":
         if not user:
             # Создаем нового пользователя-администратора с дефолтными значениями
-            db.save_user(user_id, update.effective_user.first_name, "admin")
-            # Устанавливаем Москву как город по умолчанию
+            db.save_user(id=user_id, first_name=first_name, telegram_tag=telegram_tag, employee_number=employee_number, role=role)
+            # Устанавливаем город по умолчанию
             db.update_user_city(user_id, CITIES[0])
             # Устанавливаем все теги по умолчанию
             db.update_user_tags(user_id, ",".join(TAGS))
             logger.info(f"Создан новый администратор: id={user_id}, город={CITIES[0]}, теги={TAGS}")
         else:
             # Если пользователь уже существует, просто обновляем его роль
-            db.update_user_role(user_id, "admin")
+            db.update_user_role(user_id, role)
         
-        keyboard = get_main_menu_keyboard(role="admin")
+        keyboard = get_main_menu_keyboard(role=role)
         await update.message.reply_text("Добро пожаловать, администратор!", reply_markup=keyboard)
-        return MAIN_MENU
+        return ADMIN_MENU
+    # Если пользователь не администратор
     else:
+        # Если пользователь уже существует
         if user:
             await update.message.reply_text(
                 f"Добро пожаловать, {user.get('first_name', 'Пользователь')}!",
@@ -62,6 +68,7 @@ async def start(update: Update, context: CallbackContext):
                 await update.message.reply_markdown_v2(events_text)
             
             return MAIN_MENU
+        # Если пользователь не существует
         else:
             await update.message.reply_text(
                 "Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию."
