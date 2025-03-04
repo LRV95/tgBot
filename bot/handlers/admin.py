@@ -318,17 +318,17 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         await update.message.reply_text("📌 Введите название мероприятия:")
         return MOD_EVENT_NAME
         
-    elif text == "Просмотреть мероприятия":
+    elif text == "Мои мероприятия":
         return await moderator_view_events(update, context)
         
     elif text == "Удалить мероприятие":
         return await moderator_delete_event(update, context)
         
-    elif text == "Найти пользователей":
+    elif text == "Посмотреть участников":
         await update.message.reply_text("Введите ID мероприятия для поиска зарегистрированных пользователей:")
         return MOD_EVENT_USERS
         
-    elif text == "Список мероприятий":
+    elif text == "Все мероприятия":
         return await moderator_list_all_events(update, context)
         
     elif text == "Вернуться в главное меню":
@@ -493,7 +493,7 @@ async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TY
     message = "Список мероприятий и зарегистрированных пользователей:\n\n"
     for event in events:
         users = event_db.get_users_for_event(event['id'])
-        message += f"📅 {event['name']} ({event.get('event_date')})\n"
+        message += f"📅 {event['name']} ({event.get('event_date')}) в {event.get('city')}\n"
         if users:
             message += "Зарегистрированные пользователи:\n"
             for u in users:
