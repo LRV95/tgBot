@@ -101,6 +101,10 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if text == "Модерация" and user_role in ["admin", "moderator"]:
         from bot.handlers.admin import moderation_menu
         return await moderation_menu(update, context)
+    
+    if text == "Админинстрация" and user_role in ["admin"]:
+        from bot.handlers.admin import admin_menu
+        return await admin_menu(update, context)
 
     if text == "🏠 Дом Волонтера":
         await update.message.reply_text(

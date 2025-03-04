@@ -224,6 +224,7 @@ class Database:
             return None
 
     def find_users_by_name(self, name):
+        # TODO: fix
         pattern = f"%{name}%"
         with self.connect() as conn:
             cursor = conn.cursor()

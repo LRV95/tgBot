@@ -7,12 +7,12 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
-from bot.keyboards import get_moderation_menu_keyboard
+from bot.keyboards import get_admin_menu_keyboard, get_moderation_menu_keyboard
 from database.db import Database
-from bot.states import (MAIN_MENU, MODERATOR_SEARCH_REGISTERED_USERS, WAIT_FOR_CSV, WAIT_FOR_EVENTS_CSV, MODERATION_MENU, MODERATOR_EVENT_NAME,
+from bot.states import (ADMIN_MENU, MAIN_MENU, MODERATOR_SEARCH_REGISTERED_USERS, WAIT_FOR_ADMIN_ID, WAIT_FOR_CSV, WAIT_FOR_DELETE_USER_ID, WAIT_FOR_EVENTS_CSV, MODERATION_MENU, MODERATOR_EVENT_NAME,
                         MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY, MODERATOR_EVENT_DESCRIPTION,
                         MODERATOR_EVENT_CONFIRMATION, MODERATOR_EVENT_PARTICIPATION_POINTS, MODERATOR_EVENT_TAGS,
-                        MODERATOR_EVENT_CREATOR, MODERATOR_EVENT_CODE)
+                        MODERATOR_EVENT_CREATOR, MODERATOR_EVENT_CODE, WAIT_FOR_FIND_USER_ID, WAIT_FOR_FIND_USER_NAME, WAIT_FOR_MODERATOR_ID)
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -252,6 +252,124 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
         logger.error(f"Ошибка при обработке CSV файла с мероприятиями: {e}")
         await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с мероприятиями.*")
     return MAIN_MENU
+
+async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    user_record = db.get_user(user.id)
+    if user_record and user_record.get("role") in ["admin"]:
+        await update.message.reply_text("Меню администратора:", reply_markup=get_admin_menu_keyboard())
+        return ADMIN_MENU
+    else:
+        await update.message.reply_text("🚫 У вас недостаточно прав для доступа к админ панели.")
+        return MAIN_MENU
+
+async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = update.message.text
+    if text == "Установить админа":
+        await update.message.reply_text("Введите ID пользователя для установки в роли администратора:")
+        return WAIT_FOR_ADMIN_ID
+    elif text == "Установить модератора":
+        await update.message.reply_text("Введите ID пользователя для установки в роли модератора:")
+        return WAIT_FOR_MODERATOR_ID
+    elif text == "Удалить пользователя":
+        await update.message.reply_text("Введите ID пользователя для удаления:")
+        return WAIT_FOR_DELETE_USER_ID
+    elif text == "Найти пользователя по ID":
+        await update.message.reply_text("Введите ID пользователя для поиска:")
+        return WAIT_FOR_FIND_USER_ID
+    elif text == "Найти пользователя по имени":
+        await update.message.reply_text("Введите имя пользователя для поиска:")
+        return WAIT_FOR_FIND_USER_NAME
+    elif text == "Загрузить мероприятия из CSV":
+        await update.message.reply_text("Отправьте CSV файл с мероприятиями:")
+        return WAIT_FOR_EVENTS_CSV
+    elif text == "Вернуться в главное меню":
+        from bot.keyboards import get_main_menu_keyboard
+        user_record = db.get_user(update.effective_user.id)
+        role = user_record.get("role") if user_record else "user"
+        await update.message.reply_text(
+            "Возвращаемся в главное меню.",
+            reply_markup=get_main_menu_keyboard(role=role)
+        )
+        return MAIN_MENU
+    else:
+        await update.message.reply_text("Неизвестная команда. Выберите действие из меню.")
+        return ADMIN_MENU
+
+async def handle_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.text
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text("Пользователь не найден.")
+        return ADMIN_MENU
+    if user.get("role") == "admin":
+        await update.message.reply_text("Пользователь уже является администратором.")
+        return ADMIN_MENU
+    db.update_user_role(user_id, "admin")
+    await update.message.reply_text("Пользователь успешно назначен администратором.")
+    return ADMIN_MENU
+
+async def handle_moderator_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.text
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text("Пользователь не найден.")
+        return ADMIN_MENU
+    if user.get("role") == "admin":
+        await update.message.reply_text("Пользователь является администратором. Удалите его из администраторов, чтобы назначить модератором.")
+        return ADMIN_MENU
+    if user.get("role") == "moderator":
+        await update.message.reply_text("Пользователь уже является модератором.")
+        return ADMIN_MENU
+    db.update_user_role(user_id, "moderator")
+    await update.message.reply_text("Пользователь успешно назначен модератором.")
+    return ADMIN_MENU
+
+async def handle_delete_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.text
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text("Пользователь не найден.")
+        return ADMIN_MENU
+    db.delete_user(user_id)
+    await update.message.reply_text("Пользователь успешно удален.")
+    return ADMIN_MENU
+
+async def handle_find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.message.text
+    user = db.get_user(user_id)
+    if not user:
+        await update.message.reply_text("Пользователь не найден.")
+        return ADMIN_MENU
+    await update.message.reply_text(f"Пользователь найден: {user}")
+    return ADMIN_MENU
+
+async def handle_find_user_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_name = update.message.text
+    users = db.find_users_by_name(user_name)
+    if users:
+        await update.message.reply_text(f"Найдены пользователи: {users}")
+    else:
+        await update.message.reply_text("Пользователи не найдены.")
+    return ADMIN_MENU
+
+async def handle_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обработчик загрузки CSV файла с мероприятиями."""
+    if not update.message.document:
+        await update.message.reply_text("Пожалуйста, отправьте CSV файл с мероприятиями.")
+        return WAIT_FOR_EVENTS_CSV
+
+    if not update.message.document.file_name.endswith('.csv'):
+        await update.message.reply_text("Пожалуйста, отправьте файл с расширением .csv")
+        return WAIT_FOR_EVENTS_CSV
+
+    try:
+        # Используем существующую функцию для обработки CSV
+        return await process_events_csv_document(update, context)
+    except Exception as e:
+        logger.error(f"Ошибка при обработке CSV файла: {e}")
+        await update.message.reply_text("Произошла ошибка при обработке файла. Пожалуйста, проверьте формат и попробуйте снова.")
+        return ADMIN_MENU
 
 async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
