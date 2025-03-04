@@ -315,7 +315,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
     text = update.message.text
     
     if text == "Создать мероприятие":
-        await update.message.reply_text("Введите название мероприятия:")
+        await update.message.reply_text("📌 Введите название мероприятия:")
         return MOD_EVENT_NAME
         
     elif text == "Просмотреть мероприятия":
@@ -355,80 +355,87 @@ async def moderator_create_event_start(update: Update, context: ContextTypes.DEF
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для создания мероприятия.")
         return MAIN_MENU
-    await update.message.reply_text("Введите название мероприятия:")
+    await update.message.reply_text("✨ Введите название мероприятия:")
     return MOD_EVENT_NAME
 
 async def moderator_handle_event_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_name"] = update.message.text.strip()
-    await update.message.reply_text("Введите дату мероприятия (ГГГГ-ММ-ДД):")
+    await update.message.reply_text("📅 Введите дату мероприятия (ГГГГ-ММ-ДД):")
     return MOD_EVENT_DATE
 
 async def moderator_handle_event_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_date"] = update.message.text.strip()
-    await update.message.reply_text("Введите время мероприятия (ЧЧ:ММ):")
+    await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):")
     return MOD_EVENT_TIME
 
 async def moderator_handle_event_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_time"] = update.message.text.strip()
-    await update.message.reply_text(f"Введите локацию проведения мероприятия из доступных: {', '.join(CITIES)}.")
+    cities_list = "\n• ".join(CITIES)
+    await update.message.reply_text(f"📍 Введите локацию проведения мероприятия из доступных:\n\n• {cities_list}")
     return MOD_EVENT_CITY
 
 async def moderator_handle_event_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_city"] = update.message.text.strip()
     if context.user_data["event_city"] not in CITIES:
-        await update.message.reply_text(f"Локация {context.user_data['event_city']} не найдена в списке доступных. Попробуйте снова.")
+        cities_text = "Доступные локации:\n"
+        for city in CITIES:
+            cities_text += f"• {city}\n"
+        await update.message.reply_text(f"❌ Локация {context.user_data['event_city']} не найдена в списке доступных.\n\n{cities_text}\nПопробуйте снова.")
         return MOD_EVENT_CITY
-    await update.message.reply_text("Введите организатора мероприятия:")
+    await update.message.reply_text("👤 Введите организатора мероприятия:")
     return MOD_EVENT_CREATOR
 
 async def moderator_handle_event_creator(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_creator"] = update.message.text.strip()
-    await update.message.reply_text("Введите описание мероприятия:")
+    await update.message.reply_text("📝 Введите описание мероприятия:")
     return MOD_EVENT_DESCRIPTION
 
 async def moderator_handle_event_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_description"] = update.message.text.strip()
-    await update.message.reply_text("Введите ценность мероприятия:")
+    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):")
     return MOD_EVENT_POINTS
 
 async def moderator_handle_event_participation_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_participation_points"] = update.message.text.strip()
     if not context.user_data["event_participation_points"].isdigit():
-        await update.message.reply_text("Ценность мероприятия должна быть числом. Попробуйте снова.")
+        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.")
         return MOD_EVENT_POINTS
-    await update.message.reply_text(f"Введите теги мероприятия (через запятую) из доступных тегов: {', '.join(TAGS)}.")
+    tags_list = "\n• ".join(TAGS)
+    await update.message.reply_text(f"🏷️ Введите теги мероприятия (через запятую) из доступных тегов:\n\n• {tags_list}")
     return MOD_EVENT_TAGS
 
 async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_tags"] = update.message.text.replace(" ", "")
     if not all(tag in TAGS for tag in context.user_data["event_tags"].split(",")):
-        await update.message.reply_text(f"Теги должны быть из списка доступных тегов: {', '.join(TAGS)}. Попробуйте снова.")
+        tags_list = "\n• ".join(TAGS)
+        await update.message.reply_text(f"❌ Теги должны быть из списка доступных тегов:\n\n• {tags_list}\n\nПопробуйте снова.")
         return MOD_EVENT_TAGS
-    await update.message.reply_text("Введите код для мероприятия (один для всех пользователей):")
+    await update.message.reply_text("🔑 Введите код для мероприятия (один для всех пользователей):")
     return MOD_EVENT_CODE
 
 async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_code"] = update.message.text.strip()
     summary = (
-        f"Название: {context.user_data['event_name']}\n"
-        f"Дата: {context.user_data['event_date']}\n"
-        f"Время: {context.user_data['event_time']}\n"
-        f"Локация: {context.user_data['event_city']}\n"
-        f"Организатор: {context.user_data['event_creator']}\n"
-        f"Описание: {context.user_data['event_description']}\n"
-        f"Ценность: {context.user_data['event_participation_points']}\n"
-        f"Теги: {context.user_data['event_tags']}\n"
-        f"Код: {context.user_data['event_code']}\n\n"
-        "Подтверждаете создание мероприятия? (Да/Нет)"
+        f"📋 *Проверьте данные мероприятия:*\n\n"
+        f"📌 *Название:* {context.user_data['event_name']}\n"
+        f"📅 *Дата:* {context.user_data['event_date']}\n"
+        f"⏰ *Время:* {context.user_data['event_time']}\n"
+        f"📍 *Локация:* {context.user_data['event_city']}\n"
+        f"👤 *Организатор:* {context.user_data['event_creator']}\n"
+        f"📝 *Описание:* {context.user_data['event_description']}\n"
+        f"💰 *Ценность:* {context.user_data['event_participation_points']}\n"
+        f"🏷️ *Теги:* {context.user_data['event_tags']}\n"
+        f"🔑 *Код:* {context.user_data['event_code']}\n\n"
+        "✅ Подтверждаете создание мероприятия? (Да/Нет)"
     )
-    await update.message.reply_text(summary)
+    await update.message.reply_markdown(summary)
     return MOD_EVENT_CONFIRM
 
 
 async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     response = update.message.text.strip().lower()
     if response not in ["да", "yes"]:
-        await update.message.reply_text("Создание мероприятия отменено.")
+        await update.message.reply_text("❌ Создание мероприятия отменено.", reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
     user = update.effective_user
     event_name = context.user_data.get("event_name")
@@ -454,10 +461,10 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
             code=event_code,
             owner=owner
         )
-        await update.message.reply_text("Мероприятие успешно создано!")
+        await update.message.reply_text("✅ Мероприятие успешно создано!", reply_markup=get_mod_menu_keyboard())
     except Exception as e:
         logger.error(f"Ошибка при создании мероприятия: {e}")
-        await update.message.reply_text(f"Ошибка при создании мероприятия: {e}")
+        await update.message.reply_text(f"❌ Ошибка при создании мероприятия: {e}", reply_markup=get_mod_menu_keyboard())
     # Очищаем временные данные
     for key in ["event_name", "event_date", "event_time", "event_city", "event_description", "event_code", "event_participation_points", "event_tags", "event_creator"]:
         context.user_data.pop(key, None)
