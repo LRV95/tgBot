@@ -51,8 +51,16 @@ class VolunteerBot:
     def __init__(self, token=TOKEN):
         self.token = token
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO,
-                            handlers=[logging.FileHandler("bot.log"), logging.StreamHandler(sys.stdout)])
+        
+        logging.basicConfig(
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", 
+            level=logging.INFO,
+            handlers=[
+                logging.FileHandler("bot.log", encoding='utf-8'),
+                logging.StreamHandler(sys.stdout)
+            ]
+        )
+        
         try:
             self.application = Application.builder().token(self.token).build()
             self.setup_handlers()
