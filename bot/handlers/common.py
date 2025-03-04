@@ -38,10 +38,12 @@ async def start(update: Update, context: CallbackContext):
         else:
             # Если пользователь уже существует, просто обновляем его роль
             db.update_user_role(user_id, role)
+            logger.info(f"Обновлена роль администратора: id={user_id}, роль={role}")
         
         keyboard = get_main_menu_keyboard(role=role)
-        await update.message.reply_text("Добро пожаловать, администратор!", reply_markup=keyboard)
-        return ADMIN_MENU
+        await update.message.reply_text(f"Добро пожаловать, администратор {first_name}!", reply_markup=keyboard)
+        logger.info(f"Администратор {first_name} приветствуется в главном меню")
+        return MAIN_MENU
     # Если пользователь не администратор
     else:
         # Если пользователь уже существует

@@ -7,7 +7,7 @@ def get_main_menu_keyboard(role="user"):
         return ReplyKeyboardMarkup([
             ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
             ["Модерация"],
-            ["Админинстрация"]
+            ["Администрация"]
         ], resize_keyboard=True)
     elif role == "moderator":
         return ReplyKeyboardMarkup([

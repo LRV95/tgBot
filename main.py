@@ -14,8 +14,7 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MODERATOR_EVENT_TAGS, WAIT_FOR_CS
                         MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
                         MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE, WAIT_FOR_EMPLOYEE_NUMBER,
                         MODERATOR_EVENT_CREATOR, MODERATOR_EVENT_PARTICIPATION_POINTS, WAIT_FOR_ADMIN_ID,
-                        WAIT_FOR_MODERATOR_ID, WAIT_FOR_DELETE_USER_ID, WAIT_FOR_FIND_USER_ID, WAIT_FOR_FIND_USER_NAME,
-                        WAIT_FOR_EVENTS_CSV)
+                        WAIT_FOR_MODERATOR_ID, WAIT_FOR_DELETE_USER_ID, WAIT_FOR_FIND_USER_ID, WAIT_FOR_FIND_USER_NAME)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, load_excel, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name, find_users_email, load_projects_csv, process_csv_document,
@@ -66,51 +65,39 @@ class VolunteerBot:
             entry_points=[CommandHandler("start", start)],
             states={
                 MAIN_MENU: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)
                 ],
                 AI_CHAT: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)
                 ],
                 VOLUNTEER_HOME: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)
                 ],
                 GUEST_HOME: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_events_callbacks)
                 ],
                 EVENT_DETAILS: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_details)
                 ],
                 WAIT_FOR_EMPLOYEE_NUMBER: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)
                 ],
                 REGISTRATION_CITY_SELECTION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_city_selection)
                 ],
                 REGISTRATION_TAG_SELECTION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_tag_selection)
                 ],
                 WAIT_FOR_PROFILE_UPDATE: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)
                 ],
                 PROFILE_TAG_SELECTION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_tag_selection)
                 ],
                 PROFILE_MENU: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)
                 ],
                 PROFILE_CITY_SELECTION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_city_selection)
                 ],
                 MODERATION_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderation_menu_selection)
@@ -130,51 +117,39 @@ class VolunteerBot:
                 WAIT_FOR_EVENTS_CSV: [MessageHandler(filters.Document.FileExtension("csv"), handle_events_csv)
                 ],
                 REDEEM_CODE: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_code_redemption)
                 ],
                 MODERATOR_EVENT_NAME: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_name)
                 ],
                 MODERATOR_EVENT_DATE: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_date)
                 ],
                 MODERATOR_EVENT_TIME: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_time)
                 ],
                 MODERATOR_EVENT_CITY: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_city)
                 ],
                 MODERATOR_EVENT_CREATOR: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_creator)
                 ],
                 MODERATOR_EVENT_DESCRIPTION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)
                 ],
                 MODERATOR_EVENT_PARTICIPATION_POINTS: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_participation_points)
                 ],
                 MODERATOR_EVENT_TAGS: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_tags)
                 ],
                 MODERATOR_EVENT_CODE: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_code)
                 ],
                 MODERATOR_SEARCH_REGISTERED_USERS: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_search_event_users)
                 ],
                 MODERATOR_EVENT_CONFIRMATION: [
-                    MessageHandler(filters.Regex("^(🏠 Дом Волонтера|🤖 ИИ Волонера)$"), global_main_menu_handler),
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_confirm_event)
                 ],
             },

@@ -91,20 +91,10 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     text = update.message.text
     user_id = update.effective_user.id
     user = db.get_user(user_id)
+    user_role = user.get('role', 'user') if user else 'user'
 
-    if not user:
-        await update.message.reply_text("Добро пожаловать! Вы не зарегистрированы. Начинаем регистрацию.")
-        return await handle_registration(update, context)
-
-    user_role = user.get("role", "user")
-
-    if text == "Модерация" and user_role in ["admin", "moderator"]:
-        from bot.handlers.admin import moderation_menu
-        return await moderation_menu(update, context)
-    
-    if text == "Админинстрация" and user_role in ["admin"]:
-        from bot.handlers.admin import admin_menu
-        return await admin_menu(update, context)
+    # Добавляем логирование для отладки
+    logger.info(f"Received text in main menu: '{text}', user_role: {user_role}")
 
     if text == "🏠 Дом Волонтера":
         await update.message.reply_text(
@@ -112,40 +102,35 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             reply_markup=get_volunteer_home_keyboard()
         )
         return VOLUNTEER_HOME
+    
     elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
-        await update.message.reply_text("Напишите ваш вопрос для ИИ:", reply_markup=get_ai_chat_keyboard())
+        await update.message.reply_text(
+            "Напишите ваш вопрос для ИИ:",
+            reply_markup=get_ai_chat_keyboard()
+        )
         return AI_CHAT
-    elif text == "Мероприятия":
-        context.user_data["events_page"] = 0
-        await update.message.reply_text(
-            "Список мероприятий:",
-            reply_markup=get_main_menu_keyboard(role=user_role)
-        )
-        return await handle_events(update, context)
-    elif text and "регистрация" in text.lower():
-        user = update.effective_user
-        first_name = user.first_name if user.first_name else "Пользователь"
-        await update.message.reply_text(
-            f"Вы выбрали регистрацию.\nВаше имя: {first_name}\nДалее выберите ваш город для завершения регистрации."
-        )
-        return await handle_registration(update, context)
-    elif text == "Выход":
-        # Вместо завершения диалога уведомляем пользователя, что он уже в главном меню
+    
+    elif text == "Модерация" and user_role in ["admin", "moderator"]:
+        from bot.handlers.admin import moderation_menu
+        return await moderation_menu(update, context)
+    
+    elif text == "Администрация" and user_role == "admin":
+        from bot.handlers.admin import admin_menu
+        return await admin_menu(update, context)
+    
+    elif text.lower() == "выход":
         await update.message.reply_text(
             "Вы уже в главном меню.",
             reply_markup=get_main_menu_keyboard(role=user_role)
         )
         return MAIN_MENU
+    
     else:
-        if user_role == "admin" and text.startswith("/"):
-            return MAIN_MENU
-
         await update.message.reply_text(
             "Неизвестная команда. Попробуйте ещё раз.",
             reply_markup=get_main_menu_keyboard(role=user_role)
         )
         return MAIN_MENU
-
 
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text.strip()
