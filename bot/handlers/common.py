@@ -29,7 +29,7 @@ async def start(update: Update, context: CallbackContext):
     if role == "admin":
         if not user:
             # Создаем нового пользователя-администратора с дефолтными значениями
-            db.save_user(id=user_id, first_name=first_name, telegram_tag=telegram_tag, employee_number=employee_number, role=role)
+            db.save_user(id=user_id, first_name=first_name, telegram_tag=telegram_tag, role=role)
             # Устанавливаем город по умолчанию
             db.update_user_city(user_id, CITIES[0])
             # Устанавливаем все теги по умолчанию
