@@ -1,15 +1,14 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
-from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU, WAIT_FOR_PROFILE_UPDATE,
-                        PROFILE_TAG_SELECTION, REGISTRATION_TAG_SELECTION,
-                        REGISTRATION_CITY_SELECTION, PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU,
-                        REDEEM_CODE, WAIT_FOR_EMPLOYEE_NUMBER)
+from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
+                    PROFILE_UPDATE_NAME, PROFILE_TAG_SELECT, REGISTRATION_TAG_SELECT,
+                    REGISTRATION_CITY_SELECT, PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU,
+                    EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER)
 
-from bot.keyboards import (get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
-                           get_volunteer_home_keyboard, get_profile_menu_keyboard, get_events_keyboard,
-                           get_event_details_keyboard, get_events_filter_keyboard,
-                           get_ai_chat_keyboard)
+from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
+                    get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
+                    get_events_filter_keyboard, get_event_details_keyboard, get_mod_menu_keyboard)
 
 from database.db import Database
 from services.ai_service import ContextRouterAgent
@@ -99,9 +98,9 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if text == "🏠 Дом Волонтера":
         await update.message.reply_text(
             "Добро пожаловать в домашнюю страницу волонтера!",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
     
     elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
         await update.message.reply_text(
@@ -189,8 +188,8 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
             f"• Накопление бонусных баллов\n\n"
             f"Для возврата в главное меню нажмите кнопку \\\"Выход\\\"\\."
         )
-        await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_home_keyboard())
-        return VOLUNTEER_HOME
+        await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_dashboard_keyboard())
+        return VOLUNTEER_DASHBOARD
     elif text == "Бонусы":
         user = db.get_user(update.effective_user.id)
         if not user:
@@ -205,19 +204,19 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
             f"За каждое посещенное мероприятие вы получаете баллы\\.\n\n"
         )
         
-        await update.message.reply_markdown_v2(reply, reply_markup=get_volunteer_home_keyboard())
-        return VOLUNTEER_HOME
+        await update.message.reply_markdown_v2(reply, reply_markup=get_volunteer_dashboard_keyboard())
+        return VOLUNTEER_DASHBOARD
     elif text == "Ввести код":
         keyboard = ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
         await update.message.reply_text("Пожалуйста, введите код, который вам выдал модератор:", reply_markup=keyboard)
-        return REDEEM_CODE
+        return EVENT_CODE_REDEEM
     elif text == "Выход":
         reply = f"Возвращаемся в главное меню!"
         await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
         return MAIN_MENU
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
 async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.effective_user
@@ -232,7 +231,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Произошла ошибка при регистрации. Попробуйте позже.")
         return MAIN_MENU
     await update.message.reply_text("Пожалуйста, введите ваш табельный номер (14 цифр):")
-    return WAIT_FOR_EMPLOYEE_NUMBER
+    return PROFILE_EMPLOYEE_NUMBER
 
 
 async def handle_registration_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -258,7 +257,7 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
                 "Выберите город:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
-        return REGISTRATION_CITY_SELECTION
+        return REGISTRATION_CITY_SELECT
 
     elif text == "Вперед ➡️":
         if (page + 1) * 3 < len(CITIES):  # 3 - это page_size
@@ -268,7 +267,7 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
                 "Выберите город:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
-        return REGISTRATION_CITY_SELECTION
+        return REGISTRATION_CITY_SELECT
 
     # Обработка выбора города
     if text.split(" ✔️")[0] in CITIES:  # Убираем маркер выбора, если он есть
@@ -280,14 +279,14 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
             f"Город '{city}' сохранён. Теперь выберите теги, которые вас интересуют:",
             reply_markup=get_tag_selection_keyboard()
         )
-        return REGISTRATION_TAG_SELECTION
+        return REGISTRATION_TAG_SELECT
 
     # Если введен некорректный город
     await update.message.reply_text(
         "Пожалуйста, выберите город из списка.",
         reply_markup=get_city_selection_keyboard(page=page)
     )
-    return REGISTRATION_CITY_SELECTION
+    return REGISTRATION_CITY_SELECT
 
 async def handle_registration_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обработчик выбора тегов при регистрации."""
@@ -310,7 +309,7 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
                 "Пожалуйста, выберите хотя бы один тег.",
                 reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
             )
-            return REGISTRATION_TAG_SELECTION
+            return REGISTRATION_TAG_SELECT
 
         # Сохраняем выбранные теги в БД
         db.update_user_tags(user_id, ",".join(selected_tags))
@@ -335,14 +334,14 @@ async def handle_registration_tag_selection(update: Update, context: ContextType
             "Выберите интересующие вас теги (можно выбрать несколько):",
             reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
         )
-        return REGISTRATION_TAG_SELECTION
+        return REGISTRATION_TAG_SELECT
 
     # Если введен некорректный тег
     await update.message.reply_text(
         "Пожалуйста, выберите теги из списка.",
         reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
     )
-    return REGISTRATION_TAG_SELECTION
+    return REGISTRATION_TAG_SELECT
 
 async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
@@ -352,19 +351,19 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     if text == "Изменить имя":
         await update.message.reply_text("Введите ваше новое имя:")
-        return WAIT_FOR_PROFILE_UPDATE
+        return PROFILE_UPDATE_NAME
     elif text == "Изменить интересы":
         # Загружаем текущие интересы пользователя
         current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
         context.user_data["profile_tags"] = current_tags
         await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
-        return PROFILE_TAG_SELECTION
+        return PROFILE_TAG_SELECT
     elif text == "Изменить город":
         await update.message.reply_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
-        return PROFILE_CITY_SELECTION
+        return PROFILE_CITY_SELECT
     elif text == "Выход":
-        await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_volunteer_home_keyboard())
-        return VOLUNTEER_HOME
+        await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_volunteer_dashboard_keyboard())
+        return VOLUNTEER_DASHBOARD
     else:
         await update.message.reply_text("Неизвестная команда. Попробуйте ещё раз.")
         return PROFILE_MENU
@@ -406,7 +405,7 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
                 "❗️ Пожалуйста, выберите хотя бы один интерес.",
                 reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
             )
-            return PROFILE_TAG_SELECTION
+            return PROFILE_TAG_SELECT
 
         db.update_user_tags(user_id, ",".join(selected_tags))
         profile_info = await get_profile_info(user_id)
@@ -467,13 +466,13 @@ async def handle_profile_tag_selection(update: Update, context: ContextTypes.DEF
                 "Выберите ваши интересы:",
                 reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
             )
-            return PROFILE_TAG_SELECTION
+            return PROFILE_TAG_SELECT
 
     await update.message.reply_text(
         "Пожалуйста, используйте кнопки для выбора интересов.",
         reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
     )
-    return PROFILE_TAG_SELECTION
+    return PROFILE_TAG_SELECT
 
 async def handle_events(update, context) -> int:
     user_id = update.effective_user.id
@@ -517,8 +516,8 @@ async def handle_events(update, context) -> int:
     # Если мероприятий нет, отправляем сообщение
     if not events:
         message_text = "К сожалению, мероприятий не найдено."
-        await update.message.reply_text(message_text, reply_markup=get_volunteer_home_keyboard())
-        return VOLUNTEER_HOME
+        await update.message.reply_text(message_text, reply_markup=get_volunteer_dashboard_keyboard())
+        return VOLUNTEER_DASHBOARD
 
     # Отправляем список мероприятий с клавиатурой
     await update.message.reply_text(
@@ -528,7 +527,7 @@ async def handle_events(update, context) -> int:
     
     # Сохраняем текущие мероприятия в контексте для дальнейшей обработки
     context.user_data["current_events"] = events
-    return GUEST_HOME
+    return GUEST_DASHBOARD
 
 async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
@@ -539,9 +538,9 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     if not current_events:
         await update.message.reply_text(
             "Произошла ошибка при обработке мероприятий. Попробуйте снова.",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
     # Обработка выбора мероприятия
     for event in current_events:
@@ -581,7 +580,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             "Выберите тег для фильтрации мероприятий:",
             reply_markup=get_events_filter_keyboard(selected_tag)
         )
-        return GUEST_HOME
+        return GUEST_DASHBOARD
 
     elif text == "Все мероприятия":
         context.user_data.pop("selected_tag", None)
@@ -594,9 +593,9 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     elif text == "❌ Выход":
         await update.message.reply_text(
             "Возвращаемся в главное меню",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
     # Обработка выбора тега
     for tag in TAGS:
@@ -605,7 +604,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             context.user_data["events_page"] = 0
             return await handle_events(update, context)
 
-    return GUEST_HOME
+    return GUEST_DASHBOARD
 
 async def handle_profile_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
@@ -629,7 +628,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
                 "Выберите город:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
-        return PROFILE_CITY_SELECTION
+        return PROFILE_CITY_SELECT
 
     elif text == "Вперед ➡️":
         if (page + 1) * 3 < len(CITIES):  # 3 - это page_size
@@ -639,7 +638,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
                 "Выберите город:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
-        return PROFILE_CITY_SELECTION
+        return PROFILE_CITY_SELECT
 
     # Обработка выбора города
     for city in CITIES:
@@ -665,7 +664,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
         "Пожалуйста, используйте кнопки для выбора города.",
         reply_markup=get_city_selection_keyboard(page=page)
     )
-    return PROFILE_CITY_SELECTION
+    return PROFILE_CITY_SELECT
 
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
@@ -680,9 +679,9 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         await update.message.reply_text("Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard(role=role))
         return MAIN_MENU
 
-    from bot.keyboards import get_moderation_menu_keyboard
-    await update.message.reply_text("Меню модерирования:", reply_markup=get_moderation_menu_keyboard())
-    return MODERATION_MENU
+    from bot.keyboards import get_mod_menu_keyboard
+    await update.message.reply_text("Меню модерирования:", reply_markup=get_mod_menu_keyboard())
+    return MOD_MENU
 
 
 async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -697,9 +696,9 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
     if text == "❌ Отмена":
         await update.message.reply_text(
             "Ввод кода отменен.",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
         
     try:
         events = db.get_all_events()
@@ -714,7 +713,7 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
                 "❌ Неверный код мероприятия. Попробуйте еще раз или нажмите 'Отмена'.",
                 reply_markup=keyboard
             )
-            return REDEEM_CODE
+            return EVENT_CODE_REDEEM
             
         # Проверяем, был ли зарегистрирован пользователь на мероприятие
         if db.is_user_registered_for_event(user_id, str(found_event['id'])):
@@ -729,35 +728,35 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
                 f"Мероприятие: *{found_event['name']}*\n"
                 f"Начислено баллов: *{points}*\n"
                 f"Ваш текущий баланс: *{current_score + points}* баллов",
-                reply_markup=get_volunteer_home_keyboard()
+                reply_markup=get_volunteer_dashboard_keyboard()
             )
         else:
             await update.message.reply_text(
                 "❌ Вы не были зарегистрированы на это мероприятие.",
-                reply_markup=get_volunteer_home_keyboard()
+                reply_markup=get_volunteer_dashboard_keyboard()
             )
         
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
         
     except Exception as e:
         logger.error(f"Ошибка при обработке кода мероприятия: {e}")
         await update.message.reply_text(
             "❌ Произошла ошибка при обработке кода. Пожалуйста, попробуйте позже.",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
 async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     employee_number_str = update.message.text.strip()
     if not (employee_number_str.isdigit() and len(employee_number_str) == 14):
         await update.message.reply_text("Пожалуйста, введите корректный табельный номер – ровно 14 цифр.")
-        return WAIT_FOR_EMPLOYEE_NUMBER
+        return PROFILE_EMPLOYEE_NUMBER
     employee_number = int(employee_number_str)
     # Обновляем данные пользователя с табельным номером
     db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
     await update.message.reply_text("Теперь выберите ваш город:", reply_markup=get_city_selection_keyboard())
-    return REGISTRATION_CITY_SELECTION
+    return REGISTRATION_CITY_SELECT
 
 async def update_to_state(query, text: str, reply_markup=None):
     """
@@ -779,9 +778,9 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
     if not event_id:
         await update.message.reply_text(
             "Произошла ошибка при просмотре мероприятия. Попробуйте снова.",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
     if text == "⬅️ Назад к списку":
         context.user_data.pop("current_event_id", None)
@@ -791,9 +790,9 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         context.user_data.pop("current_event_id", None)
         await update.message.reply_text(
             "Возвращаемся в главное меню",
-            reply_markup=get_volunteer_home_keyboard()
+            reply_markup=get_volunteer_dashboard_keyboard()
         )
-        return VOLUNTEER_HOME
+        return VOLUNTEER_DASHBOARD
 
     elif text == "✅ Зарегистрироваться":
         # Получаем информацию о пользователе и мероприятии
@@ -802,7 +801,7 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not event:
             await update.message.reply_text("❌ Мероприятие не найдено.")
-            return VOLUNTEER_HOME
+            return VOLUNTEER_DASHBOARD
 
         # Проверяем, не зарегистрирован ли уже пользователь
         if db.is_user_registered_for_event(user_id, event_id):
@@ -837,7 +836,7 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         
         if not event:
             await update.message.reply_text("❌ Мероприятие не найдено.")
-            return VOLUNTEER_HOME
+            return VOLUNTEER_DASHBOARD
 
         try:
             # Удаляем мероприятие из списка зарегистрированных

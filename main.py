@@ -6,15 +6,16 @@ from telegram.ext import Application, CommandHandler, MessageHandler, Conversati
 from config import TOKEN, ADMIN_ID
 from bot.handlers.common import start, cancel
 
-from bot.states import (ADMIN_MENU, MAIN_MENU, MODERATOR_EVENT_TAGS, WAIT_FOR_CSV, AI_CHAT, VOLUNTEER_HOME, GUEST_HOME, PROFILE_MENU,
-                        WAIT_FOR_PROFILE_UPDATE, REGISTRATION_TAG_SELECTION, PROFILE_TAG_SELECTION,
-                        WAIT_FOR_EVENTS_CSV, REGISTRATION_CITY_SELECTION,
-                        PROFILE_CITY_SELECTION, EVENT_DETAILS, MODERATION_MENU, MODERATOR_EVENT_NAME,
-                        MODERATOR_EVENT_DATE, MODERATOR_EVENT_TIME, MODERATOR_EVENT_CITY,
-                        MODERATOR_EVENT_DESCRIPTION, MODERATOR_EVENT_CONFIRMATION, REDEEM_CODE,
-                        MODERATOR_SEARCH_REGISTERED_USERS, MODERATOR_EVENT_CODE, WAIT_FOR_EMPLOYEE_NUMBER,
-                        MODERATOR_EVENT_CREATOR, MODERATOR_EVENT_PARTICIPATION_POINTS, WAIT_FOR_ADMIN_ID,
-                        WAIT_FOR_MODERATOR_ID, WAIT_FOR_DELETE_USER_ID, WAIT_FOR_FIND_USER_ID, WAIT_FOR_FIND_USER_NAME)
+from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT, AI_CHAT, 
+                        VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU,
+                        PROFILE_UPDATE_NAME, REGISTRATION_TAG_SELECT, PROFILE_TAG_SELECT,
+                        EVENT_CSV_UPLOAD, REGISTRATION_CITY_SELECT,
+                        PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU, MOD_EVENT_NAME,
+                        MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY,
+                        MOD_EVENT_DESCRIPTION, MOD_EVENT_CONFIRM, EVENT_CODE_REDEEM,
+                        MOD_EVENT_USERS, MOD_EVENT_CODE, PROFILE_EMPLOYEE_NUMBER,
+                        MOD_EVENT_CREATOR, MOD_EVENT_POINTS, ADMIN_SET_ADMIN,
+                        ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, load_excel, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name, find_users_email, load_projects_csv, process_csv_document,
@@ -78,88 +79,96 @@ class VolunteerBot:
                 AI_CHAT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_ai_chat)
                 ],
-                VOLUNTEER_HOME: [
+                VOLUNTEER_DASHBOARD: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_volunteer_home)
                 ],
-                GUEST_HOME: [
+                GUEST_DASHBOARD: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_events_callbacks)
                 ],
                 EVENT_DETAILS: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_details)
                 ],
-                WAIT_FOR_EMPLOYEE_NUMBER: [
+                PROFILE_EMPLOYEE_NUMBER: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)
                 ],
-                REGISTRATION_CITY_SELECTION: [
+                REGISTRATION_CITY_SELECT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_city_selection)
                 ],
-                REGISTRATION_TAG_SELECTION: [
+                REGISTRATION_TAG_SELECT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_registration_tag_selection)
                 ],
-                WAIT_FOR_PROFILE_UPDATE: [
+                PROFILE_UPDATE_NAME: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_contact_update)
                 ],
-                PROFILE_TAG_SELECTION: [
+                PROFILE_TAG_SELECT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_tag_selection)
                 ],
                 PROFILE_MENU: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_menu)
                 ],
-                PROFILE_CITY_SELECTION: [
+                PROFILE_CITY_SELECT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_profile_city_selection)
                 ],
-                MODERATION_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderation_menu_selection)
+                MOD_MENU: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderation_menu_selection)
                 ],
-                ADMIN_MENU: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_menu_selection)
+                ADMIN_MENU: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_menu_selection)
                 ],
-                WAIT_FOR_ADMIN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_id)
+                ADMIN_SET_ADMIN: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_id)
                 ],
-                WAIT_FOR_MODERATOR_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderator_id)
+                ADMIN_SET_MODERATOR: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_moderator_id)
                 ],
-                WAIT_FOR_DELETE_USER_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delete_user_id)
+                ADMIN_DELETE_USER: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_delete_user_id)
                 ],
-                WAIT_FOR_FIND_USER_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_find_user_id)
+                ADMIN_FIND_USER_ID: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_find_user_id)
                 ],
-                WAIT_FOR_FIND_USER_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, handle_find_user_name)
+                ADMIN_FIND_USER_NAME: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_find_user_name)
                 ],
-                WAIT_FOR_EVENTS_CSV: [MessageHandler(filters.Document.FileExtension("csv"), handle_events_csv)
+                EVENT_CSV_UPLOAD: [
+                    MessageHandler(filters.Document.FileExtension("csv"), handle_events_csv)
                 ],
-                REDEEM_CODE: [
+                EVENT_CODE_REDEEM: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_code_redemption)
                 ],
-                MODERATOR_EVENT_NAME: [
+                MOD_EVENT_NAME: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_name)
                 ],
-                MODERATOR_EVENT_DATE: [
+                MOD_EVENT_DATE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_date)
                 ],
-                MODERATOR_EVENT_TIME: [
+                MOD_EVENT_TIME: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_time)
                 ],
-                MODERATOR_EVENT_CITY: [
+                MOD_EVENT_CITY: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_city)
                 ],
-                MODERATOR_EVENT_CREATOR: [
+                MOD_EVENT_CREATOR: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_creator)
                 ],
-                MODERATOR_EVENT_DESCRIPTION: [
+                MOD_EVENT_DESCRIPTION: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)
                 ],
-                MODERATOR_EVENT_PARTICIPATION_POINTS: [
+                MOD_EVENT_POINTS: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_participation_points)
                 ],
-                MODERATOR_EVENT_TAGS: [
+                MOD_EVENT_TAGS: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_tags)
                 ],
-                MODERATOR_EVENT_CODE: [
+                MOD_EVENT_CODE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_code)
                 ],
-                MODERATOR_SEARCH_REGISTERED_USERS: [
+                MOD_EVENT_USERS: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_search_event_users)
                 ],
-                MODERATOR_EVENT_CONFIRMATION: [
+                MOD_EVENT_CONFIRM: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_confirm_event)
-                ],
+                ]
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )
@@ -174,13 +183,13 @@ class VolunteerBot:
         
         csv_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("load_projects_csv", load_projects_csv)],
-            states={WAIT_FOR_CSV: [MessageHandler(filters.Document.FileExtension("csv"), process_csv_document)]},
+            states={EVENT_CSV_IMPORT: [MessageHandler(filters.Document.FileExtension("csv"), process_csv_document)]},
             fallbacks=[CommandHandler("cancel", cancel)]
         )
         self.application.add_handler(csv_conv_handler)
         events_csv_conv_handler = ConversationHandler(
             entry_points=[CommandHandler("load_events_csv", load_events_csv)],
-            states={WAIT_FOR_EVENTS_CSV: [MessageHandler(filters.Document.FileExtension("csv"), process_events_csv_document)]},
+            states={EVENT_CSV_UPLOAD: [MessageHandler(filters.Document.FileExtension("csv"), process_events_csv_document)]},
             fallbacks=[CommandHandler("cancel", cancel)]
         )
         self.application.add_handler(events_csv_conv_handler)

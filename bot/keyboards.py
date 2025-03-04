@@ -20,7 +20,7 @@ def get_main_menu_keyboard(role="user"):
         ], resize_keyboard=True)
 
 
-def get_volunteer_home_keyboard():
+def get_volunteer_dashboard_keyboard():
     return ReplyKeyboardMarkup([
         ["Профиль", "Текущие мероприятия"],
         ["Бонусы", "Ввести код", "Информация"],
@@ -140,7 +140,7 @@ def get_ai_chat_keyboard():
     return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
 
 
-def get_moderation_menu_keyboard():
+def get_mod_menu_keyboard():
     return ReplyKeyboardMarkup([
         ["Создать мероприятие", "Просмотреть мероприятия"],
         ["Удалить мероприятие", "Найти пользователей"],
