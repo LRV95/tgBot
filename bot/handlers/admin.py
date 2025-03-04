@@ -490,10 +490,14 @@ async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Нет доступных мероприятий.", reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
 
-    message = "Список мероприятий и зарегистрированных пользователей:\n\n"
+    message = "Список созданных вами мероприятий и зарегистрированных на них пользователей:\n\n"
     for event in events:
         users = event_db.get_users_for_event(event['id'])
-        message += f"📅 {event['name']} ({event.get('event_date')}) в {event.get('city')}\n"
+        message += f"📌 {event['name']}\n"
+        message += f"📅 {event['event_date']}\n"
+        message += f"⏰ {event['start_time']}\n"
+        message += f"📍 {event['city']}\n"
+        message += f"🔑 Код: {event.get('code')}\n"
         if users:
             message += "Зарегистрированные пользователи:\n"
             for u in users:
@@ -623,17 +627,21 @@ async def moderator_search_event_users(update: Update, context: ContextTypes.DEF
 async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     events = event_db.get_all_events()
     if not events:
-        await update.message.reply_text("Нет доступных мероприятий.")
+        await update.message.reply_text("📭 Нет доступных мероприятий.")
         return MOD_MENU
 
-    message_lines = []
+    message_lines = ["📋 Список всех мероприятий:\n"]
     for event in events:
         id = event.get("id")
         name = event.get("name")
-        code = event.get("code")
+        date = event.get("date", "Дата не указана")
+        start_time = event.get("start_time", "Время не указано")
+        city = event.get("city", "Город не указан")
 
-        message_lines.append(f"ID: {id}, Название: {name} (Код: {code})")
-
+        message_lines.append(f"📌 {name}")
+        message_lines.append(f"📅 Дата: {date}")
+        message_lines.append(f"⏰ Время: {start_time}")
+        message_lines.append(f"📍 Город: {city}\n")
 
     message_text = "\n".join(message_lines)
     await update.message.reply_text(message_text)
