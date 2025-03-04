@@ -10,7 +10,7 @@ from bot.constants import CITIES, TAGS
 from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard
 from config import ADMIN_ID
 from database import UserModel, EventModel
-from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
+from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
                     ADMIN_DELETE_USER, EVENT_CSV_UPLOAD, MOD_MENU, MOD_EVENT_NAME,
                     MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY, MOD_EVENT_DESCRIPTION,
                     MOD_EVENT_CONFIRM, MOD_EVENT_POINTS, MOD_EVENT_TAGS,
@@ -465,7 +465,7 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
 
 # Просмотр пользователей, зарегистрированных на мероприятие модератора
 async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Выводит список мероприятий, созданных модератором, с кнопками для просмотра зарегистрированных пользователей."""
+    """Выводит список мероприятий, созданных модератором."""
     user = update.effective_user
     user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
@@ -480,14 +480,22 @@ async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TY
         events = [event for event in event_db.get_all_events() if event.get("owner") == owner_str]
 
     if not events:
-        await update.message.reply_text("Нет доступных мероприятий.")
+        await update.message.reply_text("Нет доступных мероприятий.", reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
-    keyboard = []
+
+    message = "Список мероприятий и зарегистрированных пользователей:\n\n"
     for event in events:
-        button_text = f"{event['name']} ({event.get('event_date')})"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"view_event_users:{event['id']}")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Выберите мероприятие для просмотра зарегистрированных пользователей:", reply_markup=reply_markup)
+        users = event_db.get_users_for_event(event['id'])
+        message += f"📅 {event['name']} ({event.get('event_date')})\n"
+        if users:
+            message += "Зарегистрированные пользователи:\n"
+            for u in users:
+                message += f"- {u['first_name']} (ID: {u['id']})\n"
+        else:
+            message += "Нет зарегистрированных пользователей\n"
+        message += "\n"
+
+    await update.message.reply_text(message, reply_markup=get_mod_menu_keyboard())
     return MOD_MENU
 
 async def moderator_handle_view_event_users_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -506,7 +514,7 @@ async def moderator_handle_view_event_users_callback(update: Update, context: Co
     return MOD_MENU
 
 async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Выводит список мероприятий модератора с кнопками для удаления."""
+    """Выводит список мероприятий для удаления."""
     user = update.effective_user
     user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
@@ -521,15 +529,16 @@ async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_T
         events = [event for event in event_db.get_all_events() if event.get("creator") == creator_str]
 
     if not events:
-        await update.message.reply_text("Нет доступных мероприятий для удаления.")
+        await update.message.reply_text("Нет доступных мероприятий для удаления.", reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
-    keyboard = []
+
+    message = "Список мероприятий для удаления:\n\n"
     for event in events:
-        button_text = f"{event['name']} ({event.get('event_date')})"
-        keyboard.append([InlineKeyboardButton(button_text, callback_data=f"delete_event:{event['id']}")])
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text("Выберите мероприятие для удаления:", reply_markup=reply_markup)
-    return MOD_MENU
+        message += f"ID: {event['id']} - {event['name']} ({event.get('event_date')})\n"
+    
+    message += "\nДля удаления мероприятия введите его ID:"
+    await update.message.reply_text(message)
+    return MOD_EVENT_DELETE
 
 async def moderator_handle_delete_event_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает нажатие кнопки удаления мероприятия."""
@@ -621,4 +630,40 @@ async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAUL
 
     message_text = "\n".join(message_lines)
     await update.message.reply_text(message_text)
+    return MOD_MENU
+
+async def handle_event_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод ID мероприятия для удаления."""
+    try:
+        event_id = int(update.message.text.strip())
+    except ValueError:
+        await update.message.reply_text("Неверный формат ID. Введите числовое значение.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+    # Проверяем права пользователя
+    user = update.effective_user
+    user_record = user_db.get_user(user.id)
+    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
+        await update.message.reply_text("🚫 У вас нет прав на удаление мероприятий.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+    # Получаем информацию о мероприятии
+    event = event_db.get_event_by_id(event_id)
+    if not event:
+        await update.message.reply_text("❌ Мероприятие не найдено.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+    # Проверяем, может ли модератор удалить это мероприятие
+    if user_record.get("role") == "moderator" and event.get("owner") != f"moderator:{user.id}":
+        await update.message.reply_text("🚫 Вы можете удалять только свои мероприятия.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+    try:
+        # Удаляем мероприятие
+        event_db.delete_event(event_id)
+        await update.message.reply_text(f"✅ Мероприятие \"{event.get('name')}\" успешно удалено.", reply_markup=get_mod_menu_keyboard())
+    except Exception as e:
+        logger.error(f"Ошибка при удалении мероприятия: {e}")
+        await update.message.reply_text("❌ Произошла ошибка при удалении мероприятия.", reply_markup=get_mod_menu_keyboard())
+    
     return MOD_MENU
