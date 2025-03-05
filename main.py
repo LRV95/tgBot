@@ -4,7 +4,7 @@ import sys
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, CallbackQueryHandler, CallbackContext
 from config import TOKEN, ADMIN_ID
-from bot.handlers.common import start, cancel, check_password
+from bot.handlers.common import start, cancel, check_password, handle_successful_auth
 
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT, AI_CHAT, 
                         VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU,
