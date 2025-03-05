@@ -3,11 +3,11 @@
 import os
 import csv
 import openpyxl
-from telegram import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
-from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard
+from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel
 from config import ADMIN_ID
 from database import UserModel, EventModel
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
@@ -354,75 +354,109 @@ async def moderator_create_event_start(update: Update, context: ContextTypes.DEF
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для создания мероприятия.")
         return MAIN_MENU
-    await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_NAME
 
+async def handle_event_creation_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обработчик отмены создания мероприятия"""
+    await update.message.reply_text(
+        "❌ Создание мероприятия отменено.",
+        reply_markup=get_mod_menu_keyboard()
+    )
+    return MOD_MENU
+
 async def moderator_handle_event_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_name"] = update.message.text.strip()
-    await update.message.reply_text("📅 Введите дату мероприятия (ДД.ММ.ГГГГ):", reply_markup=ReplyKeyboardRemove())
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+    context.user_data["event_name"] = text
+    await update.message.reply_text("📅 Введите дату мероприятия (ДД.ММ.ГГГГ):", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_DATE
 
 async def moderator_handle_event_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_date"] = update.message.text.strip()
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
 
     try:
-        datetime.strptime(context.user_data["event_date"], "%d.%m.%Y")
+        datetime.strptime(text, "%d.%m.%Y")
     except ValueError:
-        await update.message.reply_text("❌ Неверный формат даты. Пожалуйста, используйте формат ДД.ММ.ГГГГ.")
+        await update.message.reply_text("❌ Неверный формат даты. Пожалуйста, используйте формат ДД.ММ.ГГГГ.", 
+                                      reply_markup=get_cancel_keyboard())
         return MOD_EVENT_DATE
     
-    await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):", reply_markup=ReplyKeyboardRemove())
+    context.user_data["event_date"] = text
+    await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_TIME
 
 async def moderator_handle_event_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_time"] = update.message.text.strip()
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
 
     try:
-        datetime.strptime(context.user_data["event_time"], "%H:%M")
+        datetime.strptime(text, "%H:%M")
     except ValueError:
-        await update.message.reply_text("❌ Неверный формат времени. Пожалуйста, используйте формат ЧЧ:ММ.")
+        await update.message.reply_text("❌ Неверный формат времени. Пожалуйста, используйте формат ЧЧ:ММ.", 
+                                      reply_markup=get_cancel_keyboard())
         return MOD_EVENT_TIME
 
+    context.user_data["event_time"] = text
     await update.message.reply_text(
         "📍 Выберите территорию проведения мероприятия:",
-        reply_markup=get_city_selection_keyboard()
+        reply_markup=get_city_selection_keyboard_with_cancel()
     )
     return MOD_EVENT_CITY
 
 async def moderator_handle_event_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    selected_city = update.message.text.strip()
-    if selected_city not in CITIES:
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+
+    if text not in CITIES:
         await update.message.reply_text(
             "❌ Выбранная территория недоступна. Пожалуйста, выберите из предложенных ниже:",
-            reply_markup=get_city_selection_keyboard()
+            reply_markup=get_city_selection_keyboard_with_cancel()
         )
         return MOD_EVENT_CITY
-    context.user_data["event_city"] = selected_city
-    await update.message.reply_text("👤 Введите организатора мероприятия:", reply_markup=ReplyKeyboardRemove())
+
+    context.user_data["event_city"] = text
+    await update.message.reply_text("👤 Введите организатора мероприятия:", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_CREATOR
 
 async def moderator_handle_event_creator(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_creator"] = update.message.text.strip()
-    await update.message.reply_text("📝 Введите описание мероприятия:", reply_markup=ReplyKeyboardRemove())
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+
+    context.user_data["event_creator"] = text
+    await update.message.reply_text("📝 Введите описание мероприятия:", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_DESCRIPTION
 
 async def moderator_handle_event_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_description"] = update.message.text.strip()
-    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):", reply_markup=ReplyKeyboardRemove())
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+
+    context.user_data["event_description"] = text
+    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_POINTS
 
 async def moderator_handle_event_participation_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_participation_points"] = update.message.text.strip()
-    if not context.user_data["event_participation_points"].isdigit():
-        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.", reply_markup=ReplyKeyboardRemove())
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+
+    if not text.isdigit():
+        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.", 
+                                      reply_markup=get_cancel_keyboard())
         return MOD_EVENT_POINTS
     
-    # Запрашиваем выбор тегов через клавиатуру
+    context.user_data["event_participation_points"] = text
     await update.message.reply_text(
         "🏷️ Выберите теги мероприятия:",
-        reply_markup=get_tag_selection_keyboard()
+        reply_markup=get_tag_selection_keyboard_with_cancel()
     )
-    # Инициализируем список выбранных тегов
     context.user_data["selected_tags"] = []
     return MOD_EVENT_TAGS
 

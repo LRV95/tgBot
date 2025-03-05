@@ -136,3 +136,19 @@ def get_admin_menu_keyboard():
         ["Найти пользователя по имени", "Загрузить мероприятия из CSV"],
         ["Вернуться в главное меню"]
     ], resize_keyboard=True)
+
+def get_cancel_keyboard():
+    """Возвращает клавиатуру с одной кнопкой отмены."""
+    return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
+
+def get_city_selection_keyboard_with_cancel():
+    """Возвращает клавиатуру выбора города с кнопкой отмены."""
+    keyboard = get_city_selection_keyboard()
+    keyboard.keyboard.append(["❌ Отмена"])
+    return keyboard
+
+def get_tag_selection_keyboard_with_cancel():
+    """Возвращает клавиатуру выбора тегов с кнопками отмены и готово."""
+    keyboard = get_tag_selection_keyboard()
+    keyboard.keyboard.extend([["✅ Готово"], ["❌ Отмена"]])
+    return keyboard
