@@ -359,17 +359,30 @@ async def moderator_create_event_start(update: Update, context: ContextTypes.DEF
 
 async def moderator_handle_event_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_name"] = update.message.text.strip()
-    await update.message.reply_text("📅 Введите дату мероприятия (ГГГГ-ММ-ДД):", reply_markup=ReplyKeyboardRemove())
+    await update.message.reply_text("📅 Введите дату мероприятия (ДД.ММ.ГГГГ):", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_DATE
 
 async def moderator_handle_event_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_date"] = update.message.text.strip()
+
+    try:
+        datetime.strptime(context.user_data["event_date"], "%d.%m.%Y")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный формат даты. Пожалуйста, используйте формат ДД.ММ.ГГГГ.")
+        return MOD_EVENT_DATE
+    
     await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_TIME
 
 async def moderator_handle_event_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_time"] = update.message.text.strip()
-    # Вместо ручного ввода запрашиваем выбор территории через кнопки
+
+    try:
+        datetime.strptime(context.user_data["event_time"], "%H:%M")
+    except ValueError:
+        await update.message.reply_text("❌ Неверный формат времени. Пожалуйста, используйте формат ЧЧ:ММ.")
+        return MOD_EVENT_TIME
+
     await update.message.reply_text(
         "📍 Выберите территорию проведения мероприятия:",
         reply_markup=get_city_selection_keyboard()

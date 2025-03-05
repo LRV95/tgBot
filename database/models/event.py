@@ -38,7 +38,7 @@ class EventModel(Database):
 
         # Валидация даты и времени
         try:
-            datetime.strptime(event_date, "%Y-%m-%d")
+            datetime.strptime(event_date, "%d.%m.%Y")
             datetime.strptime(start_time, "%H:%M")
         except ValueError as e:
             raise ValueError(f"Неверный формат даты или времени: {str(e)}")
