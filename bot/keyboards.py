@@ -143,12 +143,20 @@ def get_cancel_keyboard():
 
 def get_city_selection_keyboard_with_cancel():
     """Возвращает клавиатуру выбора города с кнопкой отмены."""
-    keyboard = get_city_selection_keyboard()
-    keyboard.keyboard.append(["❌ Отмена"])
-    return keyboard
+    buttons = []
+    for city in CITIES:
+        text = f"{city}"
+        buttons.append([text])
+    buttons.append(["❌ Отмена"])
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_tag_selection_keyboard_with_cancel(selected_tags=None):
     """Возвращает клавиатуру выбора тегов с кнопками отмены и готово."""
-    keyboard = get_tag_selection_keyboard(selected_tags)
-    keyboard.keyboard.extend([["✅ Готово"], ["❌ Отмена"]])
-    return keyboard
+    if selected_tags is None:
+        selected_tags = []
+    buttons = []
+    for tag in TAGS:
+        text = f"{tag} {'✔️' if tag in selected_tags else ''}"
+        buttons.append([text])
+    buttons.extend([["✅ Готово"], ["❌ Отмена"]])
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
