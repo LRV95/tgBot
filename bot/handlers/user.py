@@ -232,7 +232,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         await update.message.reply_text("Произошла ошибка при регистрации. Попробуйте позже.")
         return MAIN_MENU
-    await update.message.reply_text("Пожалуйста, введите ваш табельный номер (10 цифр):")
+    await update.message.reply_text("Пожалуйста, введите ваш табельный номер (от 5 до 20 символов):")
     return PROFILE_EMPLOYEE_NUMBER
 
 
