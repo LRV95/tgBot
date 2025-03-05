@@ -29,7 +29,7 @@ def get_volunteer_dashboard_keyboard():
 
 
 def get_profile_menu_keyboard():
-    return ReplyKeyboardMarkup([["Изменить имя", "Изменить интересы", "Изменить город"], ["Выход"]],
+    return ReplyKeyboardMarkup([["Изменить имя", "Изменить интересы", "Изменить регион"], ["Выход"]],
                                resize_keyboard=True)
 
 

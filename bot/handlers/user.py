@@ -232,7 +232,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
     except Exception as e:
         await update.message.reply_text("Произошла ошибка при регистрации. Попробуйте позже.")
         return MAIN_MENU
-    await update.message.reply_text("Пожалуйста, введите ваш табельный номер (14 цифр):")
+    await update.message.reply_text("Пожалуйста, введите ваш табельный номер (10 цифр):")
     return PROFILE_EMPLOYEE_NUMBER
 
 
@@ -360,7 +360,7 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         context.user_data["profile_tags"] = current_tags
         await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
         return PROFILE_TAG_SELECT
-    elif text == "Изменить город":
+    elif text == "Изменить регион":
         await update.message.reply_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
         return PROFILE_CITY_SELECT
     elif text == "Выход":
@@ -738,7 +738,7 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
                 reply_markup=get_volunteer_dashboard_keyboard()
             )
         
-        return VOLUNTEER_DASHBOARD
+        return MAIN_MENU
         
     except Exception as e:
         logger.error(f"Ошибка при обработке кода мероприятия: {e}")
@@ -751,8 +751,8 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
 async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     employee_number_str = update.message.text.strip()
-    if not (employee_number_str.isdigit() and len(employee_number_str) == 14):
-        await update.message.reply_text("Пожалуйста, введите корректный табельный номер – ровно 14 цифр.")
+    if not (employee_number_str.isdigit() and 20 >= len(employee_number_str) >= 5):
+        await update.message.reply_text("Пожалуйста, введите корректный табельный номер – от 5 до 20 символов.")
         return PROFILE_EMPLOYEE_NUMBER
     employee_number = int(employee_number_str)
     # Обновляем данные пользователя с табельным номером
