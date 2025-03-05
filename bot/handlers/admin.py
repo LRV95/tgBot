@@ -315,7 +315,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
     text = update.message.text
     
     if text == "Создать мероприятие":
-        await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=ReplyKeyboardRemove())
+        await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
         return MOD_EVENT_NAME
         
     elif text == "Мои мероприятия":
@@ -463,28 +463,24 @@ async def moderator_handle_event_participation_points(update: Update, context: C
 async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+        
     if text == "✅ Готово":
         if not context.user_data.get("selected_tags"):
             await update.message.reply_text(
                 "❌ Необходимо выбрать хотя бы один тег. Выберите теги мероприятия:",
-                reply_markup=get_tag_selection_keyboard(selected_tags=context.user_data.get("selected_tags", []))
+                reply_markup=get_tag_selection_keyboard_with_cancel(selected_tags=context.user_data.get("selected_tags", []))
             )
             return MOD_EVENT_TAGS
             
         # Сохраняем выбранные теги и переходим к следующему шагу
-        context.user_data["event_tags"] = ",".join(context.user_data["selected_tags"])
+        context.user_data["event_tags"] = ",".join(context.user_data.get("selected_tags", []))
         await update.message.reply_text(
             "🔑 Введите код для мероприятия (один для всех пользователей):",
-            reply_markup=ReplyKeyboardRemove()
+            reply_markup=get_cancel_keyboard()
         )
         return MOD_EVENT_CODE
-        
-    elif text == "❌ Отмена":
-        await update.message.reply_text(
-            "❌ Создание мероприятия отменено.",
-            reply_markup=get_mod_menu_keyboard()
-        )
-        return MOD_MENU
         
     # Обработка выбора/отмены выбора тега
     selected_tag = text.split(" ✔️")[0]  # Убираем маркер выбора, если он есть
@@ -498,13 +494,13 @@ async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFA
         
         await update.message.reply_text(
             "🏷️ Выберите теги мероприятия (можно выбрать несколько):",
-            reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
+            reply_markup=get_tag_selection_keyboard_with_cancel(selected_tags=selected_tags)
         )
         return MOD_EVENT_TAGS
         
     await update.message.reply_text(
         "❌ Пожалуйста, выберите теги из предложенных вариантов.",
-        reply_markup=get_tag_selection_keyboard(selected_tags=context.user_data.get("selected_tags", []))
+        reply_markup=get_tag_selection_keyboard_with_cancel(selected_tags=context.user_data.get("selected_tags", []))
     )
     return MOD_EVENT_TAGS
 

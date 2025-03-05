@@ -147,8 +147,8 @@ def get_city_selection_keyboard_with_cancel():
     keyboard.keyboard.append(["❌ Отмена"])
     return keyboard
 
-def get_tag_selection_keyboard_with_cancel():
+def get_tag_selection_keyboard_with_cancel(selected_tags=None):
     """Возвращает клавиатуру выбора тегов с кнопками отмены и готово."""
-    keyboard = get_tag_selection_keyboard()
+    keyboard = get_tag_selection_keyboard(selected_tags)
     keyboard.keyboard.extend([["✅ Готово"], ["❌ Отмена"]])
     return keyboard
