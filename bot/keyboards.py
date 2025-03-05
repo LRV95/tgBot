@@ -160,3 +160,9 @@ def get_tag_selection_keyboard_with_cancel(selected_tags=None):
         buttons.append([text])
     buttons.extend([["✅ Готово"], ["❌ Отмена"]])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+def get_confirm_keyboard():
+    """Возвращает клавиатуру с кнопками подтверждения."""
+    return ReplyKeyboardMarkup([
+        ["✅ Да", "❌ Нет"]
+    ], resize_keyboard=True)

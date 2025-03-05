@@ -7,7 +7,7 @@ from telegram import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKe
 from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
-from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel
+from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel, get_confirm_keyboard
 from config import ADMIN_ID
 from database import UserModel, EventModel
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
@@ -505,7 +505,11 @@ async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFA
     return MOD_EVENT_TAGS
 
 async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_code"] = update.message.text.strip()
+    text = update.message.text.strip()
+    if text == "❌ Отмена":
+        return await handle_event_creation_cancel(update, context)
+        
+    context.user_data["event_code"] = text
     summary = (
         f"📋 *Проверьте данные мероприятия:*\n\n"
         f"📌 *Название:* {context.user_data['event_name']}\n"
@@ -517,48 +521,54 @@ async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFA
         f"💰 *Ценность:* {context.user_data['event_participation_points']}\n"
         f"🏷️ *Теги:* {context.user_data['event_tags']}\n"
         f"🔑 *Код:* {context.user_data['event_code']}\n\n"
-        "✅ Подтверждаете создание мероприятия? (Да/Нет)"
+        "Подтверждаете создание мероприятия?"
     )
-    await update.message.reply_markdown(summary)
+    await update.message.reply_markdown(summary, reply_markup=get_confirm_keyboard())
     return MOD_EVENT_CONFIRM
 
-
 async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    response = update.message.text.strip().lower()
-    if response not in ["да", "yes"]:
-        await update.message.reply_text("❌ Создание мероприятия отменено.", reply_markup=get_mod_menu_keyboard())
-        return MOD_MENU
-    user = update.effective_user
-    event_name = context.user_data.get("event_name")
-    event_date = context.user_data.get("event_date")
-    event_time = context.user_data.get("event_time")
-    event_city = context.user_data.get("event_city")
-    event_creator = context.user_data.get("event_creator")
-    event_description = context.user_data.get("event_description")
-    event_participation_points = context.user_data.get("event_participation_points")
-    event_tags = context.user_data.get("event_tags")
-    event_code = context.user_data.get("event_code")
-    owner = f"moderator:{user.id}"
+    text = update.message.text.strip()
+    
+    if text == "❌ Нет":
+        return await handle_event_creation_cancel(update, context)
+        
+    if text != "✅ Да":
+        await update.message.reply_text(
+            "Пожалуйста, выберите '✅ Да' для подтверждения или '❌ Нет' для отмены.",
+            reply_markup=get_confirm_keyboard()
+        )
+        return MOD_EVENT_CONFIRM
+        
     try:
+        # Создаем строку owner в формате "moderator:user_id"
+        owner = f"moderator:{update.effective_user.id}"
+        
+        # Добавляем мероприятие в базу данных
         event_db.add_event(
-            name=event_name,
-            event_date=event_date,
-            start_time=event_time,
-            city=event_city,
-            creator=event_creator,
-            description=event_description,
-            participation_points=event_participation_points,
-            tags=event_tags,
-            code=event_code,
+            name=context.user_data["event_name"],
+            event_date=context.user_data["event_date"],
+            start_time=context.user_data["event_time"],
+            city=context.user_data["event_city"],
+            creator=context.user_data["event_creator"],
+            description=context.user_data["event_description"],
+            participation_points=context.user_data["event_participation_points"],
+            tags=context.user_data["event_tags"],
+            code=context.user_data["event_code"],
             owner=owner
         )
-        await update.message.reply_text("✅ Мероприятие успешно создано!", reply_markup=get_mod_menu_keyboard())
+        
+        await update.message.reply_text(
+            "✅ Мероприятие успешно создано!", 
+            reply_markup=get_mod_menu_keyboard()
+        )
+        
     except Exception as e:
         logger.error(f"Ошибка при создании мероприятия: {e}")
-        await update.message.reply_text(f"❌ Ошибка при создании мероприятия: {e}", reply_markup=get_mod_menu_keyboard())
-    # Очищаем временные данные
-    for key in ["event_name", "event_date", "event_time", "event_city", "event_description", "event_code", "event_participation_points", "event_tags", "event_creator"]:
-        context.user_data.pop(key, None)
+        await update.message.reply_text(
+            f"❌ Ошибка при создании мероприятия: {e}", 
+            reply_markup=get_mod_menu_keyboard()
+        )
+    
     return MOD_MENU
 
 # Просмотр пользователей, зарегистрированных на мероприятие модератора
