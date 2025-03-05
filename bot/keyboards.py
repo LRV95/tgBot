@@ -47,32 +47,14 @@ def get_tag_selection_keyboard(selected_tags=None):
     
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
-
-def get_city_selection_keyboard(selected_cities=None, page=0, page_size=3):
+def get_city_selection_keyboard(selected_cities=None):
     if selected_cities is None:
         selected_cities = []
     buttons = []
-    start_idx = page * page_size
-    end_idx = start_idx + page_size
-    cities_slice = CITIES[start_idx:end_idx]
-
-    # Добавляем кнопки для каждого города
-    for city in cities_slice:
+    for city in CITIES:
         text = f"{city} {'✔️' if city in selected_cities else ''}"
         buttons.append([text])
-
-    # Добавляем навигационные кнопки
-    nav_buttons = []
-    if page > 0:
-        nav_buttons.append("⬅️ Назад")
-    if end_idx < len(CITIES):
-        nav_buttons.append("Вперед ➡️")
-    if nav_buttons:
-        buttons.append(nav_buttons)
-
-    # Добавляем кнопку отмены
     buttons.append(["❌ Отмена"])
-
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_events=None):

@@ -4,7 +4,7 @@ import sys
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, CallbackQueryHandler, CallbackContext
 from config import TOKEN, ADMIN_ID
-from bot.handlers.common import start, cancel
+from bot.handlers.common import start, cancel, check_password
 
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT, AI_CHAT, 
                         VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU,
@@ -16,7 +16,7 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_USERS, MOD_EVENT_CODE, PROFILE_EMPLOYEE_NUMBER,
                         MOD_EVENT_CREATOR, MOD_EVENT_POINTS, ADMIN_SET_ADMIN,
                         ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
-                        MOD_EVENT_DELETE)
+                        MOD_EVENT_DELETE, PASSWORD_CHECK)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -74,6 +74,9 @@ class VolunteerBot:
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler("start", start)],
             states={
+                PASSWORD_CHECK: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, check_password)
+                ],
                 MAIN_MENU: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_main_menu)
                 ],

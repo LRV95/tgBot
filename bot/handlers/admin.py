@@ -7,7 +7,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
-from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard
+from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard
 from config import ADMIN_ID
 from database import UserModel, EventModel
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
@@ -349,7 +349,6 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         return MOD_MENU
 
 async def moderator_create_event_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Запускает диалог создания мероприятия модератором."""
     user = update.effective_user
     user_record = user_db.get_user(user.id)
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
@@ -370,18 +369,22 @@ async def moderator_handle_event_date(update: Update, context: ContextTypes.DEFA
 
 async def moderator_handle_event_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_time"] = update.message.text.strip()
-    cities_list = "\n• ".join(CITIES)
-    await update.message.reply_text(f"📍 Введите локацию проведения мероприятия из доступных:\n\n• {cities_list}")
+    # Вместо ручного ввода запрашиваем выбор территории через кнопки
+    await update.message.reply_text(
+        "Выберите территорию проведения мероприятия:",
+        reply_markup=get_city_selection_keyboard()
+    )
     return MOD_EVENT_CITY
 
 async def moderator_handle_event_city(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_city"] = update.message.text.strip()
-    if context.user_data["event_city"] not in CITIES:
-        cities_text = "Доступные локации:\n"
-        for city in CITIES:
-            cities_text += f"• {city}\n"
-        await update.message.reply_text(f"❌ Локация {context.user_data['event_city']} не найдена в списке доступных.\n\n{cities_text}\nПопробуйте снова.")
+    selected_city = update.message.text.strip()
+    if selected_city not in CITIES:
+        await update.message.reply_text(
+            "❌ Выбранная территория недоступна. Пожалуйста, выберите из предложенных ниже:",
+            reply_markup=get_city_selection_keyboard()
+        )
         return MOD_EVENT_CITY
+    context.user_data["event_city"] = selected_city
     await update.message.reply_text("👤 Введите организатора мероприятия:")
     return MOD_EVENT_CREATOR
 
