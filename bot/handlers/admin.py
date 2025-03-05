@@ -3,11 +3,11 @@
 import os
 import csv
 import openpyxl
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler
 import logging
 from bot.constants import CITIES, TAGS
-from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard
+from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard
 from config import ADMIN_ID
 from database import UserModel, EventModel
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
@@ -315,7 +315,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
     text = update.message.text
     
     if text == "Создать мероприятие":
-        await update.message.reply_text("📌 Введите название мероприятия:")
+        await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=ReplyKeyboardRemove())
         return MOD_EVENT_NAME
         
     elif text == "Мои мероприятия":
@@ -354,24 +354,24 @@ async def moderator_create_event_start(update: Update, context: ContextTypes.DEF
     if not user_record or user_record.get("role") not in ["admin", "moderator"]:
         await update.message.reply_text("🚫 У вас недостаточно прав для создания мероприятия.")
         return MAIN_MENU
-    await update.message.reply_text("✨ Введите название мероприятия:")
+    await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_NAME
 
 async def moderator_handle_event_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_name"] = update.message.text.strip()
-    await update.message.reply_text("📅 Введите дату мероприятия (ГГГГ-ММ-ДД):")
+    await update.message.reply_text("📅 Введите дату мероприятия (ГГГГ-ММ-ДД):", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_DATE
 
 async def moderator_handle_event_date(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_date"] = update.message.text.strip()
-    await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):")
+    await update.message.reply_text("⏰ Введите время мероприятия (ЧЧ:ММ):", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_TIME
 
 async def moderator_handle_event_time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_time"] = update.message.text.strip()
     # Вместо ручного ввода запрашиваем выбор территории через кнопки
     await update.message.reply_text(
-        "Выберите территорию проведения мероприятия:",
+        "📍 Выберите территорию проведения мероприятия:",
         reply_markup=get_city_selection_keyboard()
     )
     return MOD_EVENT_CITY
@@ -385,36 +385,81 @@ async def moderator_handle_event_city(update: Update, context: ContextTypes.DEFA
         )
         return MOD_EVENT_CITY
     context.user_data["event_city"] = selected_city
-    await update.message.reply_text("👤 Введите организатора мероприятия:")
+    await update.message.reply_text("👤 Введите организатора мероприятия:", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_CREATOR
 
 async def moderator_handle_event_creator(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_creator"] = update.message.text.strip()
-    await update.message.reply_text("📝 Введите описание мероприятия:")
+    await update.message.reply_text("📝 Введите описание мероприятия:", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_DESCRIPTION
 
 async def moderator_handle_event_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_description"] = update.message.text.strip()
-    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):")
+    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):", reply_markup=ReplyKeyboardRemove())
     return MOD_EVENT_POINTS
 
 async def moderator_handle_event_participation_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_participation_points"] = update.message.text.strip()
     if not context.user_data["event_participation_points"].isdigit():
-        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.")
+        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.", reply_markup=ReplyKeyboardRemove())
         return MOD_EVENT_POINTS
-    tags_list = "\n• ".join(TAGS)
-    await update.message.reply_text(f"🏷️ Введите теги мероприятия (через запятую) из доступных тегов:\n\n• {tags_list}")
+    
+    # Запрашиваем выбор тегов через клавиатуру
+    await update.message.reply_text(
+        "🏷️ Выберите теги мероприятия:",
+        reply_markup=get_tag_selection_keyboard()
+    )
+    # Инициализируем список выбранных тегов
+    context.user_data["selected_tags"] = []
     return MOD_EVENT_TAGS
 
 async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_tags"] = update.message.text.replace(" ", "")
-    if not all(tag in TAGS for tag in context.user_data["event_tags"].split(",")):
-        tags_list = "\n• ".join(TAGS)
-        await update.message.reply_text(f"❌ Теги должны быть из списка доступных тегов:\n\n• {tags_list}\n\nПопробуйте снова.")
+    text = update.message.text.strip()
+    
+    if text == "✅ Готово":
+        if not context.user_data.get("selected_tags"):
+            await update.message.reply_text(
+                "❌ Необходимо выбрать хотя бы один тег. Выберите теги мероприятия:",
+                reply_markup=get_tag_selection_keyboard(selected_tags=context.user_data.get("selected_tags", []))
+            )
+            return MOD_EVENT_TAGS
+            
+        # Сохраняем выбранные теги и переходим к следующему шагу
+        context.user_data["event_tags"] = ",".join(context.user_data["selected_tags"])
+        await update.message.reply_text(
+            "🔑 Введите код для мероприятия (один для всех пользователей):",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return MOD_EVENT_CODE
+        
+    elif text == "❌ Отмена":
+        await update.message.reply_text(
+            "❌ Создание мероприятия отменено.",
+            reply_markup=get_mod_menu_keyboard()
+        )
+        return MOD_MENU
+        
+    # Обработка выбора/отмены выбора тега
+    selected_tag = text.split(" ✔️")[0]  # Убираем маркер выбора, если он есть
+    if selected_tag in TAGS:
+        selected_tags = context.user_data.get("selected_tags", [])
+        if selected_tag in selected_tags:
+            selected_tags.remove(selected_tag)
+        else:
+            selected_tags.append(selected_tag)
+        context.user_data["selected_tags"] = selected_tags
+        
+        await update.message.reply_text(
+            "🏷️ Выберите теги мероприятия (можно выбрать несколько):",
+            reply_markup=get_tag_selection_keyboard(selected_tags=selected_tags)
+        )
         return MOD_EVENT_TAGS
-    await update.message.reply_text("🔑 Введите код для мероприятия (один для всех пользователей):")
-    return MOD_EVENT_CODE
+        
+    await update.message.reply_text(
+        "❌ Пожалуйста, выберите теги из предложенных вариантов.",
+        reply_markup=get_tag_selection_keyboard(selected_tags=context.user_data.get("selected_tags", []))
+    )
+    return MOD_EVENT_TAGS
 
 async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["event_code"] = update.message.text.strip()
