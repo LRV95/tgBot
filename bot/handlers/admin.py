@@ -17,41 +17,54 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS
                     MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME, 
                     ADMIN_SET_MODERATOR)
 from datetime import datetime
+from functools import wraps
 
 logger = logging.getLogger(__name__)
 
 user_db = UserModel()
 event_db = EventModel()
 
+def role_required(*allowed_roles):
+    """
+    Декоратор для проверки роли пользователя.
+    Разрешает доступ только пользователям с указанными ролями.
+    """
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE):
+            user = update.effective_user
+            user_record = user_db.get_user(user.id)
+            user_role = user_record.get("role") if user_record else None
+            
+            if not user_role or user_role not in allowed_roles:
+                await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде\\.*")
+                return MAIN_MENU
+                
+            return await func(update, context)
+        return wrapper
+    return decorator
+
+@role_required("admin")
 async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /admin."""
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if user_record and user_record.get("role") == "admin":
-        await update.message.reply_markdown_v2(
-            "*👋 Привет, администратор\!* Доступные команды:\n"
-            "• `/load_excel` \\- загрузить данные из Excel\n"
-            "• `/set_admin <user_id>` \\- назначить администратора\n"
-            "• `/set_moderator <user_id>` \\- назначить модератора\n"
-            "• `/delete_user <user_id>` \\- удалить пользователя\n"
-            "• `/find_user_id <user_id>` \\- найти пользователя по id\n"
-            "• `/find_users_name <name>` \\- найти пользователей по имени/фамилии\n"
-            "• `/find_users_email <email>` \\- найти пользователей по email\n"
-            "• `/delete_me` \\- удалить свой аккаунт\n"
-            "• `/ai_query <query>` \\- обработать запрос через ИИ\n"
-            "• `/search_events_tag <tag>` \\- поиск мероприятий по тегу\n"
-            "• `/load_events_csv` \\- загрузить CSV с мероприятиями"
-        )
-    else:
-        await update.message.reply_markdown_v2("*🚫 У вас нет доступа к командам администратора\\.*")
+    await update.message.reply_markdown_v2(
+        "*👋 Привет, администратор\!* Доступные команды:\n"
+        "• `/load_excel` \\- загрузить данные из Excel\n"
+        "• `/set_admin <user_id>` \\- назначить администратора\n"
+        "• `/set_moderator <user_id>` \\- назначить модератора\n"
+        "• `/delete_user <user_id>` \\- удалить пользователя\n"
+        "• `/find_user_id <user_id>` \\- найти пользователя по id\n"
+        "• `/find_users_name <name>` \\- найти пользователей по имени/фамилии\n"
+        "• `/find_users_email <email>` \\- найти пользователей по email\n"
+        "• `/delete_me` \\- удалить свой аккаунт\n"
+        "• `/ai_query <query>` \\- обработать запрос через ИИ\n"
+        "• `/search_events_tag <tag>` \\- поиск мероприятий по тегу\n"
+        "• `/load_events_csv` \\- загрузить CSV с мероприятиями"
+    )
 
+@role_required("admin")
 async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /set_admin."""
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not (user_record and user_record.get("role") == "admin"):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return
     try:
         target_user_id = int(context.args[0])
         user_db.update_user_role(target_user_id, "admin")
@@ -59,13 +72,19 @@ async def set_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /set_admin <user_id>*")
 
+@role_required("admin")
+async def unset_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /unset_admin."""
+    try:
+        target_user_id = int(context.args[0])
+        user_db.update_user_role(target_user_id, "user")
+        await update.message.reply_markdown(f"*✅ Пользователь {target_user_id} удален из администраторов.*")
+    except (IndexError, ValueError):
+        await update.message.reply_markdown("*⚠️ Использование: /unset_admin <user_id>*")
+
+@role_required("admin")
 async def set_moderator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /set_moderator."""
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not (user_record and user_record.get("role") == "admin"):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return
     try:
         target_user_id = int(context.args[0])
         user_db.update_user_role(target_user_id, "moderator")
@@ -73,13 +92,9 @@ async def set_moderator(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /set_moderator <user_id>*")
 
+@role_required("admin", "moderator")
 async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /delete_user."""
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not (user_record and user_record.get("role") in ["admin", "moderator"]):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return
     try:
         target_user_id = int(context.args[0])
         if target_user_id in ADMIN_ID:
@@ -90,6 +105,7 @@ async def delete_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /delete_user <user_id>*")
 
+@role_required("admin", "moderator")
 async def find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /find_user_id."""
     try:
@@ -102,6 +118,7 @@ async def find_user_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except (IndexError, ValueError):
         await update.message.reply_markdown("*⚠️ Использование: /find_user_id <user_id>*")
 
+@role_required("admin", "moderator")
 async def find_users_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /find_users_name."""
     try:
@@ -117,16 +134,13 @@ async def find_users_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_markdown("*🚫 Ошибка при поиске пользователей по имени.*")
 
+@role_required("admin")
 async def load_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик команды /load_events_csv."""
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not (user_record and user_record.get("role") == "admin"):
-        await update.message.reply_markdown("*🚫 У вас нет доступа к этой команде.*")
-        return MAIN_MENU
     await update.message.reply_markdown("*📥 Пожалуйста, отправьте CSV файл с данными о мероприятиях (расширение .csv).*")
     return EVENT_CSV_UPLOAD
 
+@role_required("admin")
 async def process_events_csv_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработчик загрузки CSV файла с мероприятиями."""
     try:
@@ -181,15 +195,10 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
         await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с мероприятиями.*")
     return MAIN_MENU
 
+@role_required("admin", "moderator")
 async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if user_record and user_record.get("role") in ["admin"]:
-        await update.message.reply_text("Меню администратора:", reply_markup=get_admin_menu_keyboard())
-        return ADMIN_MENU
-    else:
-        await update.message.reply_text("🚫 У вас недостаточно прав для доступа к админ панели.")
-        return MAIN_MENU
+    await update.message.reply_text("Меню администратора:", reply_markup=get_admin_menu_keyboard())
+    return ADMIN_MENU
 
 async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
@@ -299,15 +308,11 @@ async def handle_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("Произошла ошибка при обработке файла. Пожалуйста, проверьте формат и попробуйте снова.")
         return ADMIN_MENU
 
+@role_required("admin", "moderator")
 async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if user_record and user_record.get("role") in ["admin", "moderator"]:
-        await update.message.reply_text("Меню модерирования:", reply_markup=get_mod_menu_keyboard())
-        return MOD_MENU
-    else:
-        await update.message.reply_text("🚫 У вас недостаточно прав для доступа к модерационному меню.")
-        return MAIN_MENU
+    await update.message.reply_text("Меню модерирования:", reply_markup=get_mod_menu_keyboard())
+    return MOD_MENU
+
 
 
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -348,12 +353,8 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         )
         return MOD_MENU
 
+@role_required("admin", "moderator")
 async def moderator_create_event_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
-        await update.message.reply_text("🚫 У вас недостаточно прав для создания мероприятия.")
-        return MAIN_MENU
     await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
     return MOD_EVENT_NAME
 
@@ -572,13 +573,11 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
     return MOD_MENU
 
 # Просмотр пользователей, зарегистрированных на мероприятие модератора
+@role_required("admin", "moderator")
 async def moderator_view_events(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Выводит список мероприятий, созданных модератором."""
     user = update.effective_user
     user_record = user_db.get_user(user.id)
-    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
-        await update.message.reply_text("🚫 У вас недостаточно прав для просмотра мероприятий.")
-        return MAIN_MENU
 
     # Для админа показываем все мероприятия, для модератора - только его
     if user_record.get("role") == "admin":
@@ -625,20 +624,18 @@ async def moderator_handle_view_event_users_callback(update: Update, context: Co
         await query.edit_message_text(message)
     return MOD_MENU
 
+@role_required("admin", "moderator")
 async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Выводит список мероприятий для удаления."""
     user = update.effective_user
     user_record = user_db.get_user(user.id)
-    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
-        await update.message.reply_text("🚫 У вас недостаточно прав для удаления мероприятий.")
-        return MAIN_MENU
 
     # Для админа показываем все мероприятия, для модератора - только его
     if user_record.get("role") == "admin":
         events = event_db.get_all_events()
     else:
-        creator_str = f"moderator:{user.id}"
-        events = [event for event in event_db.get_all_events() if event.get("creator") == creator_str]
+        owner_str = f"moderator:{user.id}"
+        events = [event for event in event_db.get_all_events() if event.get("owner") == owner_str]
 
     if not events:
         await update.message.reply_text("Нет доступных мероприятий для удаления.", reply_markup=get_mod_menu_keyboard())
@@ -652,6 +649,7 @@ async def moderator_delete_event(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(message)
     return MOD_EVENT_DELETE
 
+@role_required("admin", "moderator")
 async def moderator_handle_delete_event_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Обрабатывает нажатие кнопки удаления мероприятия."""
     query = update.callback_query
@@ -660,12 +658,7 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
     # Получаем ID мероприятия из callback_data
     event_id = int(query.data.split(":", 1)[1])
     
-    # Проверяем права пользователя
     user = update.effective_user
-    user_record = user_db.get_user(user.id)
-    if not user_record or user_record.get("role") not in ["admin", "moderator"]:
-        await query.edit_message_text("🚫 У вас нет прав на удаление мероприятий.")
-        return MOD_MENU
 
     # Получаем информацию о мероприятии
     event = event_db.get_event_by_id(event_id)
@@ -674,7 +667,7 @@ async def moderator_handle_delete_event_callback(update: Update, context: Contex
         return MOD_MENU
 
     # Проверяем, может ли модератор удалить это мероприятие
-    if user_record.get("role") == "moderator" and event.get("owner") != f"moderator:{user.id}":
+    if event.get("owner") != f"moderator:{user.id}":
         await query.edit_message_text("🚫 Вы можете удалять только свои мероприятия.")
         return MOD_MENU
 
