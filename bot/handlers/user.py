@@ -1,6 +1,7 @@
 import logging
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from bot.keyboards.common import get_cancel_keyboard
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
                     PROFILE_UPDATE_NAME, PROFILE_TAG_SELECT, REGISTRATION_TAG_SELECT,
                     REGISTRATION_CITY_SELECT, PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU,
@@ -352,7 +353,7 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_role = user.get("role", "user") if user else "user"
     
     if text == "Изменить имя":
-        await update.message.reply_text("Введите ваше новое имя:")
+        await update.message.reply_text("Введите ваше новое имя:", reply_markup=get_cancel_keyboard())
         return PROFILE_UPDATE_NAME
     elif text == "Изменить интересы":
         # Загружаем текущие интересы пользователя
@@ -382,6 +383,9 @@ async def get_profile_info(user_id: int) -> str:
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     user = user_db.get_user(user_id)
+    if update.message.text.strip() == "❌ Отмена":
+        await update.message.reply_text("Изменение имени отменено.", reply_markup=get_profile_menu_keyboard())
+        return PROFILE_MENU
     old_first_name = escape_markdown_v2(user.get("first_name", "Неизвестно"))
     new_first_name = escape_markdown_v2(update.message.text.strip())
     user_db.update_first_name(user_id, update.message.text.strip())
