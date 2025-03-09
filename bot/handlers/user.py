@@ -370,7 +370,7 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
         return PROFILE_TAG_SELECT
     elif text == "Изменить регион":
-        await update.message.reply_text("Выберите новый город:", reply_markup=get_city_selection_keyboard())
+        await update.message.reply_text("Выберите регион:", reply_markup=get_city_selection_keyboard())
         return PROFILE_CITY_SELECT
     elif text == "Выход":
         await update.message.reply_text("Возвращаемся в главное меню", reply_markup=get_volunteer_dashboard_keyboard())
@@ -528,7 +528,8 @@ async def handle_events(update, context) -> int:
     # Получаем список зарегистрированных мероприятий пользователя
     registered = []
     if user and "registered_events" in user:
-        registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
+        if user.get("registered_events") is not None:
+            registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
 
     # Формируем заголовок сообщения
     if selected_tag and selected_tag != "all":
@@ -570,8 +571,9 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         name = event.get("name")
 
         event_text = f"✨ {name}"
-        if str(event['id']) in user.get("registered_events", "").split(","):
-            event_text += " ✅"
+        if user.get("registered_events", "") is not None:
+            if str(event['id']) in user.get("registered_events", "").split(","):
+                event_text += " ✅"
 
         if text == event_text:
             event_details = format_event_details(event)
@@ -790,13 +792,13 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
 async def handle_employee_number(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id
     employee_number_str = update.message.text.strip()
-    if not (employee_number_str.isdigit() and 20 >= len(employee_number_str) >= 5):
-        await update.message.reply_text("Пожалуйста, введите корректный табельный номер – от 5 до 20 символов.")
+    if not (employee_number_str.isdigit() and len(employee_number_str)):
+        await update.message.reply_text("Пожалуйста, введите корректный табельный номер.")
         return PROFILE_EMPLOYEE_NUMBER
     employee_number = int(employee_number_str)
     # Обновляем данные пользователя с табельным номером
     user_db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
-    await update.message.reply_text("Теперь выберите ваш город:", reply_markup=get_city_selection_keyboard())
+    await update.message.reply_text("Теперь выберите ваш регион:", reply_markup=get_city_selection_keyboard())
     return REGISTRATION_CITY_SELECT
 
 async def update_to_state(query, text: str, reply_markup=None):
@@ -851,10 +853,15 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
 
         try:
             # Добавляем мероприятие в список зарегистрированных
-            registered_events = user.get("registered_events", "").split(",")
-            registered_events = [e.strip() for e in registered_events if e.strip()]
-            registered_events.append(str(event_id))
-            user_db.update_user_registered_events(user_id, ",".join(registered_events))
+            if user.get("registered_events", "") is not None:
+                registered_events = user.get("registered_events", "").split(",")
+                registered_events = [e.strip() for e in registered_events if e.strip()]
+                registered_events.append(str(event_id))
+                user_db.update_user_registered_events(user_id, ",".join(registered_events))
+            else:
+                registered_events = user.get("registered_events", "")
+                registered_events = str(event_id)
+                user_db.update_user_registered_events(user_id, registered_events)
 
             # Увеличиваем счетчик участников
             if not event_db.increment_event_participants_count(int(event_id)):
