@@ -1,15 +1,59 @@
-from langchain.llms.base import LLM
+import time
+import requests
+import logging
+from config import AUTHORIZATION_KEY, GIGACHAT_TOKEN_URL, GIGACHAT_API_URL, MODEL_NAME, TEMPERATURE
 
-class GigachatLLM(LLM):
-    def __init__(self, api_key: str):
-        self.api_key = api_key
+logger = logging.getLogger(__name__)
 
-    @property
-    def _llm_type(self) -> str:
-        return "gigachat"
+class GigaChatLLM:
+    def __init__(self, temperature: float = TEMPERATURE, max_tokens: int = 200):
+        self.temperature = temperature
+        self.max_tokens = max_tokens
+        self.access_token = None
+        self.token_expires_at = 0
 
-    def _call(self, prompt: str, stop=None) -> str:
-        # Здесь необходимо реализовать вызов API Gigachat.
-        # Например, используя requests или httpx для отправки запроса к API.
-        # Ниже приведён упрощённый пример-заглушка.
-        return f"Ответ Gigachat для запроса: {prompt}"
+    def get_access_token(self) -> str:
+        if self.access_token and time.time() < self.token_expires_at:
+            return self.access_token
+
+        headers = {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'Authorization': f'Basic {AUTHORIZATION_KEY}',
+            'RqUID': 'unique-request-id',  # можно генерировать случайный ID
+        }
+        payload = {'scope': 'GIGACHAT_API_PERS'}
+        try:
+            response = requests.post(GIGACHAT_TOKEN_URL, headers=headers, data=payload, verify=False)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Ошибка при получении токена: {e}")
+            raise Exception(f"Ошибка при получении токена: {e}")
+
+        token_data = response.json()
+        self.access_token = token_data.get('access_token')
+        expires_in = token_data.get('expires_in', 3600)
+        self.token_expires_at = time.time() + expires_in
+        return self.access_token
+
+    def generate(self, prompt: str) -> str:
+        token = self.get_access_token()
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Accept': 'application/json',
+        }
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": self.temperature,
+            "max_tokens": self.max_tokens,
+        }
+        try:
+            response = requests.post(GIGACHAT_API_URL, headers=headers, json=payload, verify=False)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Ошибка при запросе к GigaChat API: {e}")
+            raise Exception(f"Ошибка при запросе к GigaChat API: {e}")
+
+        result = response.json()
+        return result.get("choices", [])[0].get("message", {}).get("content", "").strip()

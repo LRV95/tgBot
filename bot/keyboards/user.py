@@ -4,18 +4,18 @@ from bot.constants import CITIES, TAGS
 def get_main_menu_keyboard(role="user"):
     if role == "admin":
         return ReplyKeyboardMarkup([
-            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтер"],
             ["Модерация"],
             ["Администрация"]
         ], resize_keyboard=True)
     elif role == "moderator":
         return ReplyKeyboardMarkup([
-            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"],
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтер"],
             ["Модерация"]
         ], resize_keyboard=True)
     else:
         return ReplyKeyboardMarkup([
-            ["🏠 Дом Волонтера", "🤖 ИИ Волонтера"]
+            ["🏠 Дом Волонтера", "🤖 ИИ Волонтер"]
         ], resize_keyboard=True)
 
 def get_volunteer_dashboard_keyboard():

@@ -10,7 +10,7 @@ from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD
 from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
                            get_events_filter_keyboard, get_event_details_keyboard, get_events_city_filter_keyboard)
-
+from services.ai import ContextRouterAgent
 from database import UserModel, EventModel
 from bot.constants import CITIES, TAGS
 
@@ -103,7 +103,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return VOLUNTEER_DASHBOARD
     
-    elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтера"]:
+    elif text in ["🤖 ИИ Помощник", "🤖 ИИ Волонтер"]:
         await update.message.reply_text(
             "Напишите ваш вопрос для ИИ:",
             reply_markup=get_ai_chat_keyboard()
@@ -136,17 +136,27 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     query = update.message.text.strip()
     if query.lower() in ["выход", "назад", "меню", "❌ отмена"]:
         context.user_data.pop("conversation_history", None)
-        await update.message.reply_text("Диалог прерван. Возвращаемся в главное меню.", reply_markup=get_main_menu_keyboard())
+        await update.message.reply_text(
+            "Диалог прерван. Возвращаемся в главное меню.",
+            reply_markup=get_main_menu_keyboard()
+        )
         return MAIN_MENU
 
+    # Инициализируем историю диалога, если её нет
     if "conversation_history" not in context.user_data:
         context.user_data["conversation_history"] = []
 
+    # Добавляем новый запрос в историю
     context.user_data["conversation_history"].append({"role": "user", "content": query})
 
     router_agent = ContextRouterAgent()
-    response = router_agent.process_query(query, update.effective_user.id, context.user_data["conversation_history"])
+    response = router_agent.process_query(
+        query,
+        user_id=update.effective_user.id,
+        conversation_history=context.user_data["conversation_history"]
+    )
 
+    # Добавляем ответ ИИ в историю
     context.user_data["conversation_history"].append({"role": "assistant", "content": response})
 
     await update.message.reply_markdown(response)
@@ -759,11 +769,13 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
                 f"Ваш текущий баланс: *{current_score + points}* баллов",
                 reply_markup=get_volunteer_dashboard_keyboard()
             )
+
         else:
             await update.message.reply_text(
                 "❌ Вы не были зарегистрированы на это мероприятие.",
                 reply_markup=get_volunteer_dashboard_keyboard()
             )
+            return MAIN_MENU
         
         return MAIN_MENU
         
