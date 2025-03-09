@@ -1,5 +1,5 @@
 import logging
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.keyboards.common import get_cancel_keyboard
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
@@ -8,12 +8,11 @@ from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD
                     EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER)
 
 from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
-                    get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
-                    get_events_filter_keyboard, get_event_details_keyboard, get_mod_menu_keyboard)
+                           get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
+                           get_events_filter_keyboard, get_event_details_keyboard)
 
 from database import UserModel, EventModel
-from services.ai_service import ContextRouterAgent
-from config import ADMIN_ID
+from services.ai.ai_service import ContextRouterAgent
 from bot.constants import CITIES, TAGS
 
 logger = logging.getLogger(__name__)
