@@ -16,15 +16,18 @@ class GigaChatLLM:
         if self.access_token and time.time() < self.token_expires_at:
             return self.access_token
 
+        payload = {
+            'scope': 'GIGACHAT_API_PERS'
+        }
         headers = {
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
-            'Authorization': f'Basic {AUTHORIZATION_KEY}',
-            'RqUID': 'unique-request-id',  # можно генерировать случайный ID
+            'RqUID': 'ae35b651-55c5-4baa-9e31-9c9a798ad099',
+            f'Authorization': f'Basic {AUTHORIZATION_KEY}'
         }
-        payload = {'scope': 'GIGACHAT_API_PERS'}
+
         try:
-            response = requests.post(GIGACHAT_TOKEN_URL, headers=headers, data=payload, verify=False)
+            response = requests.request("POST", GIGACHAT_TOKEN_URL, headers=headers, data=payload)
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.error(f"Ошибка при получении токена: {e}")

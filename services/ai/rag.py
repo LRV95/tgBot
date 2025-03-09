@@ -25,6 +25,7 @@ class EventRetriever:
             like_query = f"%{query}%"
             cursor.execute(sql_query, (like_query, like_query, top_k))
             rows = cursor.fetchall()
+            logger.info(f"Выполнен запрос к БД. Найдено строк: {len(rows)}")
             for row in rows:
                 event_text = (
                     f"Название: {row[0]}, Дата: {row[1]}, "
@@ -32,7 +33,9 @@ class EventRetriever:
                 )
                 events.append(event_text)
         context = "\n".join(events) if events else "Нет релевантной информации о мероприятиях."
+        logger.info(f"Формируем контекст: {context}")
         return context
+
 
 class RAGAgent:
     """

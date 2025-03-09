@@ -14,7 +14,6 @@ class ContextRouterAgent(AIAgent):
 
     def process_query(self, query: str, user_id: int = None, conversation_history: list = None, **kwargs) -> str:
         lower_query = query.lower()
-        # Простейшая логика определения темы запроса:
         if "информация" in lower_query or "подробнее" in lower_query:
             topic = "event_info"
         elif "рекомендация" in lower_query:
