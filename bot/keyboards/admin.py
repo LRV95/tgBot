@@ -5,7 +5,16 @@ def get_mod_menu_keyboard():
     return ReplyKeyboardMarkup([
         ["Создать мероприятие", "Удалить мероприятие"],
         ["Мои мероприятия", "Все мероприятия"],
-        ["Посмотреть участников", "Вернуться в главное меню"]
+        ["Посмотреть участников", "Выгрузить CSV"],
+        ["Вернуться в главное меню"]
+    ], resize_keyboard=True)
+
+def get_csv_export_menu_keyboard():
+    return ReplyKeyboardMarkup([
+        ["Выгрузка данных пользователя"],
+        ["Выгрузка мероприятий"],
+        ["Выгрузка отчётов"],
+        ["Назад"]
     ], resize_keyboard=True)
 
 def get_admin_menu_keyboard():

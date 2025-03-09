@@ -3,21 +3,23 @@
 import os
 import csv
 import openpyxl
-from telegram import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
 import logging
-from bot.constants import CITIES, TAGS
-from bot.keyboards import get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel, get_confirm_keyboard
-from config import ADMIN_ID
-from database import UserModel, EventModel
-from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT, 
-                    ADMIN_DELETE_USER, EVENT_CSV_UPLOAD, MOD_MENU, MOD_EVENT_NAME,
-                    MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY, MOD_EVENT_DESCRIPTION,
-                    MOD_EVENT_CONFIRM, MOD_EVENT_POINTS, MOD_EVENT_TAGS,
-                    MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME, 
-                    ADMIN_SET_MODERATOR)
-from datetime import datetime
-from functools import wraps
+from config         import ADMIN_ID
+from database       import UserModel, EventModel
+from datetime       import datetime
+from functools      import wraps
+from bot.constants  import CITIES, TAGS
+from telegram       import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram.ext   import ContextTypes, ConversationHandler
+from bot.keyboards  import (get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard,
+                           get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel,
+                           get_confirm_keyboard, get_csv_export_menu_keyboard)
+from bot.states     import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_USERS, ADMIN_SET_ADMIN, EVENT_CSV_IMPORT,
+                            ADMIN_DELETE_USER, EVENT_CSV_UPLOAD, MOD_MENU, MOD_EVENT_NAME,
+                            MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY, MOD_EVENT_DESCRIPTION,
+                            MOD_EVENT_CONFIRM, MOD_EVENT_POINTS, MOD_EVENT_TAGS,
+                            MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
+                            ADMIN_SET_MODERATOR, CSV_EXPORT_MENU)
 
 logger = logging.getLogger(__name__)
 
@@ -313,29 +315,29 @@ async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Меню модерирования:", reply_markup=get_mod_menu_keyboard())
     return MOD_MENU
 
-
-
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обработчик выбора в меню модерации."""
     text = update.message.text
-    
     if text == "Создать мероприятие":
         await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
         return MOD_EVENT_NAME
-        
+
     elif text == "Мои мероприятия":
         return await moderator_view_events(update, context)
-        
+
     elif text == "Удалить мероприятие":
         return await moderator_delete_event(update, context)
-        
+
     elif text == "Посмотреть участников":
         await update.message.reply_text("Введите ID мероприятия для поиска зарегистрированных пользователей:")
         return MOD_EVENT_USERS
-        
+
     elif text == "Все мероприятия":
         return await moderator_list_all_events(update, context)
-        
+
+    elif text == "Выгрузить CSV":
+        await update.message.reply_text("Выберите вариант экспорта:", reply_markup=get_csv_export_menu_keyboard())
+        return CSV_EXPORT_MENU
+
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
         user_record = user_db.get_user(update.effective_user.id)
@@ -345,12 +347,10 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
             reply_markup=get_main_menu_keyboard(role=role)
         )
         return MAIN_MENU
-        
+
     else:
-        await update.message.reply_text(
-            "Неизвестная команда. Выберите действие из меню.",
-            reply_markup=get_mod_menu_keyboard()
-        )
+        await update.message.reply_text("Неизвестная команда. Выберите действие из меню.",
+                                        reply_markup=get_mod_menu_keyboard())
         return MOD_MENU
 
 @role_required("admin", "moderator")
@@ -776,3 +776,170 @@ async def handle_event_delete(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("❌ Произошла ошибка при удалении мероприятия.", reply_markup=get_mod_menu_keyboard())
     
     return MOD_MENU
+
+
+async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        events = event_db.get_all_events()
+        if not events:
+            await update.message.reply_text("Нет мероприятий для экспорта.", reply_markup=get_mod_menu_keyboard())
+            return MOD_MENU
+
+        # Создаем временный файл в папке data
+        os.makedirs("data", exist_ok=True)
+        temp_file = os.path.join("data", "events_export.csv")
+
+        fieldnames = ["id", "name", "event_date", "start_time", "city", "creator", "description",
+                      "participation_points", "participants_count", "tags", "code", "owner"]
+
+        with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for event in events:
+                writer.writerow({
+                    "id": event.get("id", ""),
+                    "name": event.get("name", ""),
+                    "event_date": event.get("event_date", ""),
+                    "start_time": event.get("start_time", ""),
+                    "city": event.get("city", ""),
+                    "creator": event.get("creator", ""),
+                    "description": event.get("description", ""),
+                    "participation_points": event.get("participation_points", 0),
+                    "participants_count": event.get("participants_count", 0),
+                    "tags": event.get("tags", ""),
+                    "code": event.get("code", ""),
+                    "owner": event.get("owner", "")
+                })
+
+        with open(temp_file, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename="events_export.csv",
+                caption="Выгрузка мероприятий в CSV формате"
+            )
+
+        os.remove(temp_file)
+        return MOD_MENU
+
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте CSV: {e}")
+        await update.message.reply_text("Произошла ошибка при экспорте мероприятий.",
+                                        reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+
+@role_required("admin", "moderator")
+async def moderator_export_users_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        # Предполагается, что у модели пользователей есть метод get_all_users()
+        users = user_db.get_all_users()
+        if not users:
+            await update.message.reply_text("Нет данных пользователей для экспорта.",
+                                            reply_markup=get_mod_menu_keyboard())
+            return MOD_MENU
+
+        os.makedirs("data", exist_ok=True)
+        temp_file = os.path.join("data", "users_export.csv")
+
+        fieldnames = ["id", "first_name", "telegram_tag", "employee_number", "role", "score", "registered_events",
+                      "tags", "city"]
+        with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for user in users:
+                writer.writerow({
+                    "id": user.get("id", ""),
+                    "first_name": user.get("first_name", ""),
+                    "telegram_tag": user.get("telegram_tag", ""),
+                    "employee_number": user.get("employee_number", ""),
+                    "role": user.get("role", ""),
+                    "score": user.get("score", 0),
+                    "registered_events": user.get("registered_events", ""),
+                    "tags": user.get("tags", ""),
+                    "city": user.get("city", "")
+                })
+
+        with open(temp_file, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename="users_export.csv",
+                caption="Выгрузка данных пользователей в CSV формате"
+            )
+
+        os.remove(temp_file)
+        return MOD_MENU
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте данных пользователей: {e}")
+        await update.message.reply_text("Произошла ошибка при экспорте данных пользователей.",
+                                        reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+
+@role_required("admin", "moderator")
+async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        events = event_db.get_all_events()
+        if not events:
+            await update.message.reply_text("Нет мероприятий для экспорта.", reply_markup=get_mod_menu_keyboard())
+            return MOD_MENU
+
+        os.makedirs("data", exist_ok=True)
+        temp_file = os.path.join("data", "events_export.csv")
+
+        fieldnames = ["id", "name", "event_date", "start_time", "city", "creator", "description",
+                      "participation_points", "participants_count", "tags", "code", "owner"]
+        with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for event in events:
+                writer.writerow({
+                    "id": event.get("id", ""),
+                    "name": event.get("name", ""),
+                    "event_date": event.get("event_date", ""),
+                    "start_time": event.get("start_time", ""),
+                    "city": event.get("city", ""),
+                    "creator": event.get("creator", ""),
+                    "description": event.get("description", ""),
+                    "participation_points": event.get("participation_points", 0),
+                    "participants_count": event.get("participants_count", 0),
+                    "tags": event.get("tags", ""),
+                    "code": event.get("code", ""),
+                    "owner": event.get("owner", "")
+                })
+
+        with open(temp_file, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename="events_export.csv",
+                caption="Выгрузка мероприятий в CSV формате"
+            )
+
+        os.remove(temp_file)
+        return MOD_MENU
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте мероприятий: {e}")
+        await update.message.reply_text("Произошла ошибка при экспорте мероприятий.",
+                                        reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+@role_required("admin", "moderator")
+async def moderator_export_reports_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("Функционал выгрузки отчётов ещё не реализован.", reply_markup=get_mod_menu_keyboard())
+    return MOD_MENU
+
+@role_required("admin", "moderator")
+async def handle_csv_export_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+    if text == "Выгрузка данных пользователя":
+        return await moderator_export_users_csv(update, context)
+    elif text == "Выгрузка мероприятий":
+        return await moderator_export_events_csv(update, context)
+    elif text == "Выгрузка отчётов":
+        return await moderator_export_reports_csv(update, context)
+    elif text == "Назад":
+        # Возвращаемся в основное меню модератора
+        await update.message.reply_text("Возвращаемся в меню модератора", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+    else:
+        await update.message.reply_text("Выберите один из вариантов, используя клавиатуру.")
+        return CSV_EXPORT_MENU

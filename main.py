@@ -16,7 +16,7 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_USERS, MOD_EVENT_CODE, PROFILE_EMPLOYEE_NUMBER,
                         MOD_EVENT_CREATOR, MOD_EVENT_POINTS, ADMIN_SET_ADMIN,
                         ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
-                        MOD_EVENT_DELETE, PASSWORD_CHECK)
+                        MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -25,7 +25,7 @@ from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_cs
                                 moderator_handle_event_description, moderator_confirm_event, moderator_view_events,
                                 moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users,
                                 moderator_handle_event_code, moderator_handle_event_participation_points, handle_admin_menu_selection,
-                                handle_event_delete)
+                                handle_event_delete, handle_csv_export_menu_selection)
 
 from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
@@ -175,7 +175,10 @@ class VolunteerBot:
                 ],
                 MOD_EVENT_DELETE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_delete)
-                ]
+                ],
+                CSV_EXPORT_MENU: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_csv_export_menu_selection)
+                ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]
         )

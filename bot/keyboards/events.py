@@ -1,5 +1,6 @@
 from telegram import ReplyKeyboardMarkup
 from bot.constants import TAGS
+from bot.constants import CITIES
 
 def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_events=None):
     if registered_events is None:
@@ -25,7 +26,7 @@ def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_e
         buttons.append(nav_buttons)
 
     # Добавляем фильтры и выход на последней строке
-    buttons.append(["🔍 Фильтры", "❌ Выход"])
+    buttons.append(["🔍 Теги", "🔍 Регионы", "❌ Выход"])
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -56,4 +57,13 @@ def get_event_details_keyboard(event_id, is_registered=False):
     buttons.append(["⬅️ Назад к списку"])
     buttons.append(["❌ Выход"])
 
-    return ReplyKeyboardMarkup(buttons, resize_keyboard=True) 
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+def get_events_city_filter_keyboard(selected_city=None):
+    buttons = []
+    for city in CITIES:
+        text = f"{city} {'✓' if city == selected_city else ''}"
+        buttons.append([text])
+    buttons.append(["Все мероприятия"])
+    buttons.append(["❌ Отмена"])
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)

@@ -88,7 +88,7 @@ async def handle_successful_auth(update: Update, context: ContextTypes.DEFAULT_T
                 for event in upcoming_events:
                     name = event.get("name")
                     events_text += f"• *{name}*\n  📆 {event['event_date']} в {event['start_time']}\n  📍 {event['city']}\n\n"
-                await update.message.reply_markdown_v2(events_text)
+                await update.message.reply_markdown_v2(escape_markdown_v2(events_text))
             return MAIN_MENU
         # Если пользователь не существует
         else:

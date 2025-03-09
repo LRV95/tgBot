@@ -9,10 +9,9 @@ from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD
 
 from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
-                           get_events_filter_keyboard, get_event_details_keyboard)
+                           get_events_filter_keyboard, get_event_details_keyboard, get_events_city_filter_keyboard)
 
 from database import UserModel, EventModel
-from services.ai.ai_service import ContextRouterAgent
 from bot.constants import CITIES, TAGS
 
 logger = logging.getLogger(__name__)
@@ -507,6 +506,15 @@ async def handle_events(update, context) -> int:
             events = event_db.get_events(limit=4, offset=page * 4)
             total_events = event_db.get_events_count()
 
+    if "selected_city" in context.user_data and context.user_data["selected_city"] != "all":
+        selected_city = context.user_data["selected_city"]
+        events = event_db.get_events_by_city(selected_city, limit=4, offset=page * 4)
+        total_events = event_db.get_events_count_by_city(selected_city)
+        message_text = f"Список мероприятий по городу '{selected_city}':"
+        if not events:
+            events = event_db.get_events(limit=4, offset=page * 4)
+            total_events = event_db.get_events_count()
+
     # Получаем список зарегистрированных мероприятий пользователя
     registered = []
     if user and "registered_events" in user:
@@ -556,7 +564,6 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             event_text += " ✅"
 
         if text == event_text:
-            # Показываем детали мероприятия
             event_details = format_event_details(event)
             is_registered = event_db.is_user_registered_for_event(user_id, str(event['id']))
             context.user_data["current_event_id"] = str(event['id'])
@@ -578,12 +585,19 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["events_page"] = page + 1
         return await handle_events(update, context)
 
-    # Обработка фильтров
-    elif text == "🔍 Фильтры":
-        selected_tag = context.user_data.get("selected_tag", None)
+    elif text == "🔍 Теги":
+        context.user_data.pop("selected_city", None)
         await update.message.reply_text(
             "Выберите тег для фильтрации мероприятий:",
-            reply_markup=get_events_filter_keyboard(selected_tag)
+            reply_markup=get_events_filter_keyboard(context.user_data.get("selected_tag"))
+        )
+        return GUEST_DASHBOARD
+
+    elif text == "🔍 Регионы":
+        context.user_data.pop("selected_tag", None)
+        await update.message.reply_text(
+            "Выберите город для фильтрации мероприятий:",
+            reply_markup=get_events_city_filter_keyboard(context.user_data.get("selected_city"))
         )
         return GUEST_DASHBOARD
 
@@ -602,10 +616,20 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         )
         return VOLUNTEER_DASHBOARD
 
-    # Обработка выбора тега
+    # Обработка выбора конкретного тега
     for tag in TAGS:
         if text.startswith(tag):
             context.user_data["selected_tag"] = tag
+            context.user_data.pop("selected_city", None)
+            context.user_data["events_page"] = 0
+            return await handle_events(update, context)
+
+    # Обработка выбора конкретного города
+    for city in CITIES:
+        if text.startswith(city):
+            context.user_data["selected_city"] = city
+            # Сбрасываем выбранный тег, чтобы не было конфликта
+            context.user_data.pop("selected_tag", None)
             context.user_data["events_page"] = 0
             return await handle_events(update, context)
 
