@@ -6,7 +6,7 @@ from config import AUTHORIZATION_KEY, GIGACHAT_TOKEN_URL, GIGACHAT_API_URL, MODE
 logger = logging.getLogger(__name__)
 
 class GigaChatLLM:
-    def __init__(self, temperature: float = TEMPERATURE, max_tokens: int = 200):
+    def __init__(self, temperature: float = TEMPERATURE, max_tokens: int = 150):
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.access_token = None

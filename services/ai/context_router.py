@@ -45,11 +45,11 @@ class ContextRouterAgent(AIAgent):
         extracted_tags = self.extract_tags(query)
         lower_query = query.lower()
 
-        if "информация" in lower_query or extracted_tags:
+        if "информация" in extracted_tags:
             return self.event_info_agent.process_query(query)
-        elif "рекомендация" in lower_query:
+        elif "рекомендация" in extracted_tags:
             return self.recommendation_agent.process_query(query, user_id)
-        elif "случайные события" in lower_query:
-            return self.random_events_agent.process_query(query)
+        elif "случайные события" in extracted_tags:
+            return self.random_events_agent.process_query(query, user_id)
         else:
             return self.dialogue_agent.process_query(query, conversation_history)

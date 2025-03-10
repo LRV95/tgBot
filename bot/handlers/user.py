@@ -132,6 +132,7 @@ async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return MAIN_MENU
 
+
 async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.message.text.strip()
     if query.lower() in ["выход", "назад", "меню", "❌ отмена"]:
@@ -142,11 +143,9 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         return MAIN_MENU
 
-    # Инициализируем историю диалога, если её нет
     if "conversation_history" not in context.user_data:
         context.user_data["conversation_history"] = []
 
-    # Добавляем новый запрос в историю
     context.user_data["conversation_history"].append({"role": "user", "content": query})
 
     router_agent = ContextRouterAgent()
@@ -156,10 +155,15 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         conversation_history=context.user_data["conversation_history"]
     )
 
-    # Добавляем ответ ИИ в историю
     context.user_data["conversation_history"].append({"role": "assistant", "content": response})
 
-    await update.message.reply_markdown(response)
+    max_length = 4096
+    if len(response) > max_length:
+        for i in range(0, len(response), max_length):
+            await update.message.reply_markdown(response[i:i + max_length])
+    else:
+        await update.message.reply_markdown(response)
+
     return AI_CHAT
 
 async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
