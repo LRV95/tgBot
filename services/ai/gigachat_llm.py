@@ -45,6 +45,7 @@ class GigaChatLLM:
             'Authorization': f'Bearer {token}',
             'Accept': 'application/json',
         }
+
         payload = {
             "model": MODEL_NAME,
             "messages": [{"role": "user", "content": prompt}],

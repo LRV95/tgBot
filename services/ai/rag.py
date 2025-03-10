@@ -1,64 +1,90 @@
-from langchain.prompts import PromptTemplate
+import difflib
 from database.core import Database
+from langchain.prompts import PromptTemplate
 import logging
 from .gigachat_llm import GigaChatLLM
 
 logger = logging.getLogger(__name__)
 
-class EventRetriever:
-    """
-    Простой поиск по событиям в базе данных с использованием SQL LIKE.
-    """
-    def __init__(self, db: Database):
-        self.db = db
-
-    def retrieve(self, query: str, top_k: int = 3) -> str:
-        events = []
-        with self.db.connect() as conn:
-            cursor = conn.cursor()
-            sql_query = """
-                SELECT name, event_date, start_time, city, description 
-                FROM events 
-                WHERE name LIKE ? OR description LIKE ? 
-                LIMIT ?
-            """
-            like_query = f"%{query}%"
-            cursor.execute(sql_query, (like_query, like_query, top_k))
-            rows = cursor.fetchall()
-            logger.info(f"Выполнен запрос к БД. Найдено строк: {len(rows)}")
-            for row in rows:
-                event_text = (
-                    f"Название: {row[0]}, Дата: {row[1]}, "
-                    f"Время: {row[2]}, Город: {row[3]}, Описание: {row[4]}"
-                )
-                events.append(event_text)
-        context = "\n".join(events) if events else "Нет релевантной информации о мероприятиях."
-        logger.info(f"Формируем контекст: {context}")
-        return context
-
-
 class RAGAgent:
     """
-    Агент, использующий RetrievalQA-подход. Он получает контекст из БД и генерирует ответ с помощью GigaChat.
+    Агент, использующий RetrievalQA-подход, который сам определяет, о каком мероприятии идет речь.
+    Он извлекает список названий мероприятий из базы, запрашивает у LLM наиболее релевантное название,
+    затем формирует окончательный промпт с подробностями по выбранному мероприятию.
     """
     def __init__(self):
         self.db = Database()
-        self.retriever = EventRetriever(self.db)
         self.llm = GigaChatLLM()
-        self.prompt_template = PromptTemplate(
-            input_variables=["context", "question"],
-            template=(
-                "Информация из базы данных:\n{context}\n\n"
-                "Вопрос: {question}\n\nОтвет:"
-            )
-        )
 
     def process_query(self, query: str) -> str:
-        context = self.retriever.retrieve(query)
-        prompt = self.prompt_template.format(context=context, question=query)
+        with self.db.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, event_date, start_time, city, description FROM events")
+            rows = cursor.fetchall()
+
+        if not rows:
+            return "Нет релевантной информации о мероприятиях."
+
+        event_names = [row[0] for row in rows]
+
+        event_list_str = "\n".join([f"- {name}" for name in event_names])
+        prompt_event = (
+            "Дан список названий мероприятий:\n"
+            f"{event_list_str}\n\n"
+            "Пользовательский запрос: \"" + query + "\"\n\n"
+            "Определи, о каком из указанных мероприятий идёт речь. "
+            "Верни только название мероприятия, которое есть в списке, без лишних слов и знаков препинания."
+        )
+
         try:
-            response = self.llm.generate(prompt)
+            selected_event_name = self.llm.generate(prompt_event).strip()
+            logger.info(f"LLM определил мероприятие: {selected_event_name}")
         except Exception as e:
-            logger.error(f"Ошибка при генерации ответа в RAGAgent: {e}")
+            logger.error(f"Ошибка при определении названия мероприятия: {e}")
+            return "Произошла ошибка при обработке запроса."
+
+        if selected_event_name not in event_names:
+            best_match = difflib.get_close_matches(selected_event_name, event_names, n=1)
+            if best_match:
+                selected_event_name = best_match[0]
+            else:
+                return "Не удалось определить, о каком мероприятии идёт речь."
+
+        event_details = None
+        for row in rows:
+            if row[0] == selected_event_name:
+                event_details = {
+                    "name": row[0],
+                    "event_date": row[1],
+                    "start_time": row[2],
+                    "city": row[3],
+                    "description": row[4]
+                }
+                break
+
+        if not event_details:
+            return "Мероприятие не найдено в базе данных."
+
+        prompt_final = (
+            f"Информация о мероприятии:\n"
+            f"Название: {event_details['name']}\n"
+            f"Дата: {event_details['event_date']}\n"
+            f"Время: {event_details['start_time']}\n"
+            f"Город: {event_details['city']}\n"
+            f"Описание: {event_details['description']}\n\n"
+            f"Пользовательский запрос: \"{query}\"\n\n"
+            "Сформируй подробный ответ на основе данной информации о мероприятии."
+        )
+
+        prompt_final = ("Пользователь спрашивает о мероприятии. Опиши его доброжелательно, используя эмодзи."
+                        "Вот информация о мероприятии:"
+                        f"{prompt_final}"
+                        f"В твоём ответе должна содержаться вся переданная информация, но поменяй стиль.")
+
+        try:
+            response = self.llm.generate(prompt_final)
+        except Exception as e:
+            logger.error(f"Ошибка при генерации окончательного ответа: {e}")
             response = "Произошла ошибка при обработке запроса."
+
         return response
