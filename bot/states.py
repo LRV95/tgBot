@@ -43,4 +43,11 @@ MOD_EVENT_USERS = 51          # Просмотр списка участнико
 MOD_EVENT_DELETE = 52         # Добавляем новое состояние для удаления мероприятия
 CSV_EXPORT_MENU = 53          # Для модераторского меню
 
+# Состояния для работы с отчетами (60-69)
+EVENT_REPORT_CREATE = 60       # Создание отчета о мероприятии
+EVENT_REPORT_PARTICIPANTS = 61 # Ввод количества участников
+EVENT_REPORT_PHOTOS = 62       # Добавление ссылок на фотографии
+EVENT_REPORT_SUMMARY = 63      # Ввод краткого описания итогов
+EVENT_REPORT_FEEDBACK = 64     # Ввод отзывов участников
+
 PASSWORD_CHECK = 100          # Хардкод пароль

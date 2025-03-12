@@ -68,6 +68,19 @@ class Database:
                     )
                 ''')
 
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS event_reports (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        event_id INTEGER NOT NULL,
+                        report_date TEXT NOT NULL,
+                        actual_participants INTEGER NOT NULL,
+                        photos_links TEXT,
+                        summary TEXT NOT NULL,
+                        feedback TEXT,
+                        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+                    )
+                ''')
+
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Ошибка при создании таблиц: {e}")

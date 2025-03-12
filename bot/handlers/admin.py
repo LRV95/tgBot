@@ -19,7 +19,8 @@ from bot.states     import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_U
                             MOD_EVENT_DATE, MOD_EVENT_TIME, MOD_EVENT_CITY, MOD_EVENT_DESCRIPTION,
                             MOD_EVENT_CONFIRM, MOD_EVENT_POINTS, MOD_EVENT_TAGS,
                             MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
-                            ADMIN_SET_MODERATOR, CSV_EXPORT_MENU)
+                            ADMIN_SET_MODERATOR, CSV_EXPORT_MENU, EVENT_REPORT_CREATE, EVENT_REPORT_PARTICIPANTS,
+                            EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY, EVENT_REPORT_FEEDBACK)
 
 logger = logging.getLogger(__name__)
 
@@ -337,6 +338,21 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
     elif text == "Выгрузить CSV":
         await update.message.reply_text("Выберите вариант экспорта:", reply_markup=get_csv_export_menu_keyboard())
         return CSV_EXPORT_MENU
+
+    elif text == "Создать отчет":
+        await update.message.reply_text(
+            "Введите ID мероприятия для создания отчета:",
+            reply_markup=get_cancel_keyboard()
+        )
+        return EVENT_REPORT_CREATE
+
+    elif text == "Просмотреть отчет":
+        await update.message.reply_text(
+            "Введите ID мероприятия для просмотра отчета:",
+            reply_markup=get_cancel_keyboard()
+        )
+        context.user_data["action"] = "view_report"
+        return EVENT_REPORT_CREATE
 
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
@@ -876,55 +892,169 @@ async def moderator_export_users_csv(update: Update, context: ContextTypes.DEFAU
 
 
 @role_required("admin", "moderator")
-async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    try:
-        events = event_db.get_all_events()
-        if not events:
-            await update.message.reply_text("Нет мероприятий для экспорта.", reply_markup=get_mod_menu_keyboard())
-            return MOD_MENU
-
-        os.makedirs("data", exist_ok=True)
-        temp_file = os.path.join("data", "events_export.csv")
-
-        fieldnames = ["id", "name", "event_date", "start_time", "city", "creator", "description",
-                      "participation_points", "participants_count", "tags", "code", "owner"]
-        with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for event in events:
-                writer.writerow({
-                    "id": event.get("id", ""),
-                    "name": event.get("name", ""),
-                    "event_date": event.get("event_date", ""),
-                    "start_time": event.get("start_time", ""),
-                    "city": event.get("city", ""),
-                    "creator": event.get("creator", ""),
-                    "description": event.get("description", ""),
-                    "participation_points": event.get("participation_points", 0),
-                    "participants_count": event.get("participants_count", 0),
-                    "tags": event.get("tags", ""),
-                    "code": event.get("code", ""),
-                    "owner": event.get("owner", "")
-                })
-
-        with open(temp_file, "rb") as f:
-            await update.message.reply_document(
-                document=f,
-                filename="events_export.csv",
-                caption="Выгрузка мероприятий в CSV формате"
-            )
-
-        os.remove(temp_file)
+async def create_event_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Начинает процесс создания отчета о мероприятии."""
+    event_id = context.user_data.get("selected_event_id")
+    if not event_id:
+        await update.message.reply_text(
+            "❌ Сначала выберите мероприятие для создания отчета.",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return MOD_MENU
+
+    # Проверяем, не существует ли уже отчет
+    from database.models.event_report import EventReportModel
+    report_model = EventReportModel()
+    existing_report = report_model.get_report(event_id)
+    
+    if existing_report:
+        await update.message.reply_text(
+            "❌ Отчет для этого мероприятия уже существует.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return MOD_MENU
+
+    await update.message.reply_text(
+        "📊 Создание отчета о мероприятии\n\n"
+        "Укажите фактическое количество участников:",
+        reply_markup=get_cancel_keyboard()
+    )
+    return EVENT_REPORT_PARTICIPANTS
+
+async def handle_report_participants(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод количества участников."""
+    try:
+        participants = int(update.message.text)
+        if participants < 0:
+            raise ValueError("Количество участников не может быть отрицательным")
+        context.user_data["report_participants"] = participants
+        
+        await update.message.reply_text(
+            "📸 Отправьте ссылки на фотографии с мероприятия (через запятую):",
+            reply_markup=get_cancel_keyboard()
+        )
+        return EVENT_REPORT_PHOTOS
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Пожалуйста, введите корректное число участников.",
+            reply_markup=get_cancel_keyboard()
+        )
+        return EVENT_REPORT_PARTICIPANTS
+
+async def handle_report_photos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод ссылок на фотографии."""
+    photos = update.message.text
+    context.user_data["report_photos"] = photos
+    
+    await update.message.reply_text(
+        "📝 Введите краткое описание итогов мероприятия:",
+        reply_markup=get_cancel_keyboard()
+    )
+    return EVENT_REPORT_SUMMARY
+
+async def handle_report_summary(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод описания итогов мероприятия."""
+    summary = update.message.text
+    context.user_data["report_summary"] = summary
+    
+    await update.message.reply_text(
+        "💭 Введите отзывы участников (если есть):\n"
+        "Для пропуска этого шага, нажмите 'Пропустить'",
+        reply_markup=ReplyKeyboardMarkup([["Пропустить"], ["Отмена"]], resize_keyboard=True)
+    )
+    return EVENT_REPORT_FEEDBACK
+
+async def handle_report_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод отзывов и создает отчет."""
+    feedback = None if update.message.text == "Пропустить" else update.message.text
+    
+    try:
+        from database.models.event_report import EventReportModel
+        report_model = EventReportModel()
+        
+        event_id = context.user_data.get("selected_event_id")
+        participants = context.user_data.get("report_participants")
+        photos = context.user_data.get("report_photos")
+        summary = context.user_data.get("report_summary")
+        
+        report_model.create_report(
+            event_id=event_id,
+            actual_participants=participants,
+            photos_links=photos,
+            summary=summary,
+            feedback=feedback
+        )
+        
+        # Очищаем данные отчета
+        for key in ["report_participants", "report_photos", "report_summary"]:
+            if key in context.user_data:
+                del context.user_data[key]
+        
+        await update.message.reply_text(
+            "✅ Отчет о мероприятии успешно создан!",
+            reply_markup=get_mod_menu_keyboard()
+        )
+        return MOD_MENU
+        
     except Exception as e:
-        logger.error(f"Ошибка при экспорте мероприятий: {e}")
-        await update.message.reply_text("Произошла ошибка при экспорте мероприятий.",
-                                        reply_markup=get_mod_menu_keyboard())
+        logger.error(f"Ошибка при создании отчета: {e}")
+        await update.message.reply_text(
+            "❌ Произошла ошибка при создании отчета. Попробуйте позже.",
+            reply_markup=get_mod_menu_keyboard()
+        )
         return MOD_MENU
 
 @role_required("admin", "moderator")
-async def moderator_export_reports_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    await update.message.reply_text("Функционал выгрузки отчётов ещё не реализован.", reply_markup=get_mod_menu_keyboard())
+async def view_event_report(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Показывает отчет о мероприятии."""
+    event_id = context.user_data.get("selected_event_id")
+    if not event_id:
+        await update.message.reply_text(
+            "❌ Сначала выберите мероприятие для просмотра отчета.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return MOD_MENU
+
+    try:
+        from database.models.event_report import EventReportModel
+        report_model = EventReportModel()
+        report = report_model.get_report(event_id)
+        
+        if not report:
+            await update.message.reply_text(
+                "❌ Отчет для этого мероприятия еще не создан.",
+                reply_markup=get_mod_menu_keyboard()
+            )
+            return MOD_MENU
+            
+        # Получаем информацию о мероприятии
+        event = event_db.get_event_by_id(event_id)
+        
+        report_text = (
+            f"📊 *Отчет о мероприятии \"{event['name']}\"*\n\n"
+            f"📅 Дата отчета: {report['report_date']}\n"
+            f"👥 Фактическое количество участников: {report['actual_participants']}\n\n"
+            f"📝 Итоги мероприятия:\n{report['summary']}\n\n"
+        )
+        
+        if report['photos_links']:
+            report_text += f"📸 Фотографии: {report['photos_links']}\n\n"
+            
+        if report['feedback']:
+            report_text += f"💭 Отзывы участников:\n{report['feedback']}\n"
+            
+        await update.message.reply_markdown_v2(
+            report_text,
+            reply_markup=get_mod_menu_keyboard()
+        )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при просмотре отчета: {e}")
+        await update.message.reply_text(
+            "❌ Произошла ошибка при просмотре отчета.",
+            reply_markup=get_mod_menu_keyboard()
+        )
+    
     return MOD_MENU
 
 @role_required("admin", "moderator")
@@ -943,3 +1073,31 @@ async def handle_csv_export_menu_selection(update: Update, context: ContextTypes
     else:
         await update.message.reply_text("Выберите один из вариантов, используя клавиатуру.")
         return CSV_EXPORT_MENU
+
+async def handle_event_report_create(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает ввод ID мероприятия для создания/просмотра отчета."""
+    try:
+        event_id = int(update.message.text)
+        event = event_db.get_event_by_id(event_id)
+        
+        if not event:
+            await update.message.reply_text(
+                "❌ Мероприятие с указанным ID не найдено.",
+                reply_markup=get_mod_menu_keyboard()
+            )
+            return MOD_MENU
+            
+        context.user_data["selected_event_id"] = event_id
+        
+        # Проверяем, что хочет сделать пользователь: создать или просмотреть отчет
+        if context.user_data.get("action") == "view_report":
+            return await view_event_report(update, context)
+        else:
+            return await create_event_report(update, context)
+            
+    except ValueError:
+        await update.message.reply_text(
+            "❌ Пожалуйста, введите корректный ID мероприятия (число).",
+            reply_markup=get_cancel_keyboard()
+        )
+        return EVENT_REPORT_CREATE

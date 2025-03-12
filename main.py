@@ -16,7 +16,9 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_USERS, MOD_EVENT_CODE, PROFILE_EMPLOYEE_NUMBER,
                         MOD_EVENT_CREATOR, MOD_EVENT_POINTS, ADMIN_SET_ADMIN,
                         ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
-                        MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU)
+                        MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU, EVENT_REPORT_CREATE,
+                        EVENT_REPORT_PARTICIPANTS, EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY,
+                        EVENT_REPORT_FEEDBACK)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -25,7 +27,9 @@ from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_cs
                                 moderator_handle_event_description, moderator_confirm_event, moderator_view_events,
                                 moderator_delete_event, moderator_handle_delete_event_callback, moderator_handle_search_event_users,
                                 moderator_handle_event_code, moderator_handle_event_participation_points, handle_admin_menu_selection,
-                                handle_event_delete, handle_csv_export_menu_selection)
+                                handle_event_delete, handle_csv_export_menu_selection, handle_event_report_create,
+                                create_event_report, handle_report_participants, handle_report_photos,
+                                handle_report_summary, handle_report_feedback, view_event_report)
 
 from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
@@ -178,6 +182,21 @@ class VolunteerBot:
                 ],
                 CSV_EXPORT_MENU: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_csv_export_menu_selection)
+                ],
+                EVENT_REPORT_CREATE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_report_create)
+                ],
+                EVENT_REPORT_PARTICIPANTS: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_participants)
+                ],
+                EVENT_REPORT_PHOTOS: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_photos)
+                ],
+                EVENT_REPORT_SUMMARY: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_summary)
+                ],
+                EVENT_REPORT_FEEDBACK: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_feedback)
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]
