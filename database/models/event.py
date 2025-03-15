@@ -87,7 +87,7 @@ class EventModel(Database):
             return [self._format_event(row) for row in rows]
 
     def get_events_by_city(self, city, limit=5, offset=0):
-        """Возвращает список мероприятий для указанного города с постраничной выборкой."""
+        """Возвращает список мероприятий для указанного региона с постраничной выборкой."""
         with self.connect() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM events WHERE city = ? LIMIT ? OFFSET ?", (city, limit, offset))

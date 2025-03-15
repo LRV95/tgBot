@@ -746,12 +746,12 @@ async def moderator_list_all_events(update: Update, context: ContextTypes.DEFAUL
         name = event.get("name")
         date = event.get("date", "Дата не указана")
         start_time = event.get("start_time", "Время не указано")
-        city = event.get("city", "Город не указан")
+        city = event.get("city", "Регион не указан")
 
         message_lines.append(f"📌 {name}")
         message_lines.append(f"📅 Дата: {date}")
         message_lines.append(f"⏰ Время: {start_time}")
-        message_lines.append(f"📍 Город: {city}\n")
+        message_lines.append(f"📍 Регион: {city}\n")
 
     message_text = "\n".join(message_lines)
     await update.message.reply_text(message_text)

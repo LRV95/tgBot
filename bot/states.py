@@ -9,9 +9,9 @@ PROFILE_MENU = 10              # Меню управления профилем
 PROFILE_UPDATE_NAME = 11       # Изменение имени пользователя
 PROFILE_EMPLOYEE_NUMBER = 12   # Ввод табельного номера сотрудника
 PROFILE_TAG_SELECT = 13        # Выбор интересов в профиле
-PROFILE_CITY_SELECT = 14       # Выбор города в профиле
+PROFILE_CITY_SELECT = 14       # Выбор региона в профиле
 REGISTRATION_TAG_SELECT = 15   # Выбор интересов при регистрации
-REGISTRATION_CITY_SELECT = 16  # Выбор города при регистрации
+REGISTRATION_CITY_SELECT = 16  # Выбор региона при регистрации
 
 # Состояния для работы с мероприятиями (20-29)
 EVENT_DETAILS = 20            # Просмотр деталей мероприятия
@@ -32,7 +32,7 @@ MOD_MENU = 40                 # Меню модератора
 MOD_EVENT_NAME = 41           # Ввод названия мероприятия
 MOD_EVENT_DATE = 42           # Ввод даты мероприятия
 MOD_EVENT_TIME = 43           # Ввод времени мероприятия
-MOD_EVENT_CITY = 44           # Выбор города проведения
+MOD_EVENT_CITY = 44           # Выбор региона проведения
 MOD_EVENT_CREATOR = 45        # Указание организатора
 MOD_EVENT_DESCRIPTION = 46    # Ввод описания мероприятия
 MOD_EVENT_POINTS = 47         # Установка баллов за участие

@@ -36,7 +36,7 @@ def format_event_details(event):
         message = f"*{escape_markdown_v2(event.get('name', 'Без названия'))}*\n\n"
         message += f"📅 Дата: {escape_markdown_v2(event.get('event_date', 'Не указана'))}\n"
         message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
-        message += f"📍 Город: {escape_markdown_v2(event.get('city', 'Не указан'))}\n"
+        message += f"📍 Регион: {escape_markdown_v2(event.get('city', 'Не указан'))}\n"
         message += f"👥 Организатор: {escape_markdown_v2(event.get('creator', 'Не указан'))}\n"
         message += f"\n📝 Описание: {escape_markdown_v2(event.get('description', 'Не указано'))}\n"
         message += f"\n💰 Баллы за участие: {event.get('participation_points', 0)}\n"
@@ -76,7 +76,7 @@ def format_profile_message(user):
         f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
         f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
         f"🏆 *Баллы:* {escape_markdown_v2(str(score))}\n"
-        f"🏙️ *Город:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
+        f"🏙️ *Регион:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
         f"🏷️ *Интересы:*\n{interests_text}\n\n"
     )
     
@@ -250,7 +250,7 @@ async def handle_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def handle_registration_city_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Обработчик выбора города при регистрации."""
+    """Обработчик выбора региона при регистрации."""
     text = update.message.text
     user_id = update.effective_user.id
     page = context.user_data.get("city_page", 0)
@@ -269,7 +269,7 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
             page -= 1
             context.user_data["city_page"] = page
             await update.message.reply_text(
-                "Выберите город:",
+                "Выберите регион:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
         return REGISTRATION_CITY_SELECT
@@ -279,7 +279,7 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
             page += 1
             context.user_data["city_page"] = page
             await update.message.reply_text(
-                "Выберите город:",
+                "Выберите регион:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
         return REGISTRATION_CITY_SELECT
@@ -291,14 +291,14 @@ async def handle_registration_city_selection(update: Update, context: ContextTyp
         user_db.update_user_city(user_id, city)
         # Переходим к выбору тегов
         await update.message.reply_text(
-            f"Город '{city}' сохранён. Теперь выберите теги, которые вас интересуют:",
+            f"Регион '{city}' сохранён. Теперь выберите теги, которые вас интересуют:",
             reply_markup=get_tag_selection_keyboard()
         )
         return REGISTRATION_TAG_SELECT
 
     # Если введен некорректный город
     await update.message.reply_text(
-        "Пожалуйста, выберите город из списка.",
+        "Пожалуйста, выберите регион из списка.",
         reply_markup=get_city_selection_keyboard(page=page)
     )
     return REGISTRATION_CITY_SELECT
@@ -524,7 +524,7 @@ async def handle_events(update, context) -> int:
         selected_city = context.user_data["selected_city"]
         events = event_db.get_events_by_city(selected_city, limit=4, offset=page * 4)
         total_events = event_db.get_events_count_by_city(selected_city)
-        message_text = f"Список мероприятий по городу '{selected_city}':"
+        message_text = f"Список мероприятий по регион '{selected_city}':"
         if not events:
             events = event_db.get_events(limit=4, offset=page * 4)
             total_events = event_db.get_events_count()
@@ -612,7 +612,7 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
     elif text == "🔍 Регионы":
         context.user_data.pop("selected_tag", None)
         await update.message.reply_text(
-            "Выберите город для фильтрации мероприятий:",
+            "Выберите регион для фильтрации мероприятий:",
             reply_markup=get_events_city_filter_keyboard(context.user_data.get("selected_city"))
         )
         return GUEST_DASHBOARD
@@ -658,7 +658,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
 
     if text == "❌ Отмена":
         await update.message.reply_text(
-            "Изменение города отменено.",
+            "Изменение региона отменено.",
             reply_markup=get_profile_menu_keyboard()
         )
         # Очищаем временные данные
@@ -670,7 +670,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
             page -= 1
             context.user_data["city_page"] = page
             await update.message.reply_text(
-                "Выберите город:",
+                "Выберите регион:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
         return PROFILE_CITY_SELECT
@@ -680,7 +680,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
             page += 1
             context.user_data["city_page"] = page
             await update.message.reply_text(
-                "Выберите город:",
+                "Выберите регион:",
                 reply_markup=get_city_selection_keyboard(page=page)
             )
         return PROFILE_CITY_SELECT
@@ -697,7 +697,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
             user_db.update_user_city(user_id, city)
             
             await update.message.reply_markdown_v2(
-                f"✅ Ваш город успешно изменен с {old_city} на {escaped_city}\\!",
+                f"✅ Ваш регион успешно изменен с {old_city} на {escaped_city}\\!",
                 reply_markup=get_profile_menu_keyboard()
             )
             
@@ -706,7 +706,7 @@ async def handle_profile_city_selection(update: Update, context: ContextTypes.DE
             return PROFILE_MENU
 
     await update.message.reply_text(
-        "Пожалуйста, используйте кнопки для выбора города.",
+        "Пожалуйста, используйте кнопки для выбора региона.",
         reply_markup=get_city_selection_keyboard(page=page)
     )
     return PROFILE_CITY_SELECT

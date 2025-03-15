@@ -63,7 +63,7 @@ async def handle_successful_auth(update: Update, context: ContextTypes.DEFAULT_T
             user_db.save_user(id=user.id, first_name=first_name, telegram_tag=telegram_tag, role=role)
             user_db.update_user_city(user.id, CITIES[0])
             user_db.update_user_tags(user.id, ",".join(TAGS))
-            logger.info(f"Создан новый администратор: id={user.id}, город={CITIES[0]}, теги={TAGS}")
+            logger.info(f"Создан новый администратор: id={user.id}, регион={CITIES[0]}, теги={TAGS}")
         # Если пользователь уже существует, обновляем его роль
         else:
             user_db.update_user_role(user.id, role)
