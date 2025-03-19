@@ -18,7 +18,7 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         ADMIN_SET_MODERATOR, ADMIN_DELETE_USER, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
                         MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU, EVENT_REPORT_CREATE,
                         EVENT_REPORT_PARTICIPANTS, EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY,
-                        EVENT_REPORT_FEEDBACK)
+                        EVENT_REPORT_FEEDBACK, PROFILE_EMPLOYEE_NUMBER_UPDATE)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -35,7 +35,7 @@ from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
                                handle_profile_tag_selection, handle_events_callbacks,
                                handle_registration_city_selection, handle_events, handle_profile_city_selection,
-                               handle_code_redemption, handle_employee_number)
+                               handle_code_redemption, handle_employee_number, handle_employee_number_update)
 
 def admin_required(func):
     def wrapper(update: Update, context: CallbackContext):
@@ -197,6 +197,12 @@ class VolunteerBot:
                 ],
                 EVENT_REPORT_FEEDBACK: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_feedback)
+                ],
+                PROFILE_EMPLOYEE_NUMBER: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)
+                ],
+                PROFILE_EMPLOYEE_NUMBER_UPDATE: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number_update)
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]

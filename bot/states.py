@@ -12,6 +12,8 @@ PROFILE_TAG_SELECT = 13        # Выбор интересов в профиле
 PROFILE_CITY_SELECT = 14       # Выбор региона в профиле
 REGISTRATION_TAG_SELECT = 15   # Выбор интересов при регистрации
 REGISTRATION_CITY_SELECT = 16  # Выбор региона при регистрации
+PROFILE_EMPLOYEE_NUMBER_UPDATE = 17 # Изменение табельного номера
+
 
 # Состояния для работы с мероприятиями (20-29)
 EVENT_DETAILS = 20            # Просмотр деталей мероприятия

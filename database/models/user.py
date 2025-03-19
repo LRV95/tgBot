@@ -11,18 +11,20 @@ class UserModel(Database):
         """Получает информацию о пользователе."""
         with self.connect() as conn:
             cursor = conn.cursor()
-            cursor.execute('SELECT id, first_name, role, score, registered_events, tags, city FROM users WHERE id = ?', (user_id,))
+            cursor.execute('SELECT id, first_name, telegram_tag, employee_number, role, score, registered_events, tags, city FROM users WHERE id = ?', (user_id,))
             user = cursor.fetchone()
             if user:
                 logger.info(f"Получен пользователь из БД: id={user[0]}, first_name={user[1]}, role={user[2]}")
                 return {
                     "id": user[0],
                     "first_name": user[1],
-                    "role": user[2],
-                    "score": user[3],
-                    "registered_events": user[4],
-                    "tags": user[5],
-                    "city": user[6]
+                    "telegram_tag": user[2],
+                    "employee_number": user[3],
+                    "role": user[4],
+                    "score": user[5],
+                    "registered_events": user[6],
+                    "tags": user[7],
+                    "city": user[8]
                 }
             logger.info(f"Пользователь с id={user_id} не найден в БД")
             return None

@@ -5,7 +5,7 @@ from bot.keyboards.common import get_cancel_keyboard
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
                     PROFILE_UPDATE_NAME, PROFILE_TAG_SELECT, REGISTRATION_TAG_SELECT,
                     REGISTRATION_CITY_SELECT, PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU,
-                    EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER)
+                    EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER, PROFILE_EMPLOYEE_NUMBER_UPDATE)
 
 from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
@@ -46,6 +46,7 @@ def format_event_details(event):
         logger.error(f"Ошибка при форматировании деталей мероприятия: {e}")
         return "Ошибка при отображении информации о мероприятии"
 
+
 def format_profile_message(user):
     """Форматирует сообщение профиля пользователя с информацией о бонусах."""
     # Получаем список мероприятий пользователя
@@ -62,28 +63,28 @@ def format_profile_message(user):
             except:
                 continue
 
-    # Форматируем интересы
     interests = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
-    interests_text = "• " + "\n• ".join(escape_markdown_v2(interest) for interest in interests) if interests else "Не указаны"
-    
-    # Получаем количество баллов и добавляем информацию о доступных наградах
+    interests_text = "• " + "\n• ".join(
+        escape_markdown_v2(interest) for interest in interests) if interests else "Не указаны"
+
     score = user.get("score", 0)
-    
-    # Формируем сообщение
+    employee_number = user.get("employee_number", "Не указан")
+
     reply = (
         f"👤 *Профиль волонтера*\n\n"
         f"📝 *Имя:* {escape_markdown_v2(user.get('first_name', 'Не указано'))}\n"
         f"🌟 *Роль:* {escape_markdown_v2(user.get('role', 'Волонтер'))}\n"
         f"🏆 *Баллы:* {escape_markdown_v2(str(score))}\n"
+        f"🔢 *Табельный номер:* {escape_markdown_v2(str(employee_number))}\n"
         f"🏙️ *Регион:* {escape_markdown_v2(user.get('city', 'Не указан'))}\n\n"
         f"🏷️ *Интересы:*\n{interests_text}\n\n"
     )
-    
+
     if registered_events:
         reply += f"📅 *Зарегистрированные мероприятия:*\n" + "\n".join(registered_events)
     else:
         reply += "📅 *Зарегистрированные мероприятия:* Нет активных регистраций"
-        
+
     return reply
 
 async def handle_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -362,12 +363,14 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     user = user_db.get_user(user_id)
     user_role = user.get("role", "user") if user else "user"
-    
+
     if text == "Изменить имя":
         await update.message.reply_text("Введите ваше новое имя:", reply_markup=get_cancel_keyboard())
         return PROFILE_UPDATE_NAME
+    elif text == "Изменить табельный":
+        await update.message.reply_text("Введите новый табельный номер:", reply_markup=get_cancel_keyboard())
+        return PROFILE_EMPLOYEE_NUMBER_UPDATE
     elif text == "Изменить интересы":
-        # Загружаем текущие интересы пользователя
         current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
         context.user_data["profile_tags"] = current_tags
         await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
@@ -387,8 +390,7 @@ async def get_profile_info(user_id: int) -> str:
     user = user_db.get_user(user_id)
     if not user:
         return "❌ Ошибка: профиль не найден"
-        
-    # Используем функцию format_profile_message для форматирования профиля
+
     return format_profile_message(user)
 
 async def handle_contact_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -912,3 +914,14 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         return EVENT_DETAILS
 
     return EVENT_DETAILS
+
+async def handle_employee_number_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.effective_user.id
+    employee_number_str = update.message.text.strip()
+    if not (employee_number_str.isdigit() and len(employee_number_str)):
+        await update.message.reply_text("Пожалуйста, введите корректный табельный номер.", reply_markup=get_cancel_keyboard())
+        return PROFILE_EMPLOYEE_NUMBER_UPDATE
+    employee_number = int(employee_number_str)
+    user_db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
+    await update.message.reply_text("Ваш табельный номер успешно изменен.", reply_markup=get_profile_menu_keyboard())
+    return PROFILE_MENU

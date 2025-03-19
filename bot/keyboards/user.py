@@ -26,8 +26,11 @@ def get_volunteer_dashboard_keyboard():
     ], resize_keyboard=True)
 
 def get_profile_menu_keyboard():
-    return ReplyKeyboardMarkup([["Изменить имя", "Изменить интересы", "Изменить регион"], ["Выход"]],
-                               resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [["Изменить имя", "Изменить табельный", "Изменить интересы", "Изменить регион"],
+         ["Выход"]],
+        resize_keyboard=True
+    )
 
 def get_tag_selection_keyboard(selected_tags=None):
     if selected_tags is None:
