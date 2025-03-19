@@ -52,6 +52,15 @@ class Database:
                 ''')
 
                 cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS completed_events (
+                        user_id INTEGER NOT NULL,
+                        event_id INTEGER NOT NULL,
+                        completed_date TEXT DEFAULT (datetime('now')),
+                        PRIMARY KEY (user_id, event_id)
+                    )
+                ''')
+
+                cursor.execute('''
                     CREATE TABLE IF NOT EXISTS events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,

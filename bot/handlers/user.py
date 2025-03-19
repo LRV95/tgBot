@@ -729,21 +729,18 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
 
 
 async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    # TODO: сделать сохранение истории пройденных мероприятий
-    # TODO: в том числе и для того, чтобы нельзя было пройти одно и тоже мероприятие дважды
-    """Обработчик ввода кода мероприятия."""
     text = update.message.text
     user_id = update.effective_user.id
 
     keyboard = ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
-    
+
     if text == "❌ Отмена":
         await update.message.reply_text(
             "Ввод кода отменен.",
             reply_markup=get_volunteer_dashboard_keyboard()
         )
         return VOLUNTEER_DASHBOARD
-        
+
     try:
         events = event_db.get_all_events()
         found_event = None
@@ -758,32 +755,37 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
                 reply_markup=keyboard
             )
             return EVENT_CODE_REDEEM
-            
-        # Проверяем, был ли зарегистрирован пользователь на мероприятие
+
         if event_db.is_user_registered_for_event(user_id, str(found_event['id'])):
-            # Начисляем баллы
+            if event_db.has_completed_event(user_id, str(found_event['id'])):
+                await update.message.reply_text(
+                    "Вы уже получили баллы за это мероприятие.",
+                    reply_markup=get_volunteer_dashboard_keyboard()
+                )
+                return MAIN_MENU
+
+            # Начисляем баллы и отмечаем мероприятие как пройденное
             user = user_db.get_user(user_id)
             points = found_event.get("participation_points", 0)
             current_score = user.get("score", 0)
             user_db.update_user_score(user_id, current_score + points)
-            user_db.unregister_user_from_event(user_id, str(found_event['id']))
-            
+            event_db.mark_event_completed(user_id, str(found_event['id']))
+
             await update.message.reply_markdown(
                 f"Мероприятие: *{found_event['name']}*\n"
                 f"Начислено баллов: *{points}*\n"
                 f"Ваш текущий баланс: *{current_score + points}* баллов",
                 reply_markup=get_volunteer_dashboard_keyboard()
             )
-
         else:
             await update.message.reply_text(
                 "❌ Вы не были зарегистрированы на это мероприятие.",
                 reply_markup=get_volunteer_dashboard_keyboard()
             )
             return MAIN_MENU
-        
+
         return MAIN_MENU
-        
+
     except Exception as e:
         logger.error(f"Ошибка при обработке кода мероприятия: {e}")
         await update.message.reply_text(

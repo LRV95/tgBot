@@ -245,7 +245,25 @@ class EventModel(Database):
                     
                 logger.info(f"Мероприятие с ID {event_id} успешно удалено")
                 return True
-                
+
         except sqlite3.Error as e:
             logger.error(f"Ошибка при удалении мероприятия: {e}")
-            raise DatabaseError(f"Ошибка при удалении мероприятия: {e}") 
+            raise DatabaseError(f"Ошибка при удалении мероприятия: {e}")
+
+    def has_completed_event(self, user_id, event_id):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT 1 FROM completed_events WHERE user_id = ? AND event_id = ?",
+                (user_id, event_id)
+            )
+            return cursor.fetchone() is not None
+
+    def mark_event_completed(self, user_id, event_id):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT OR IGNORE INTO completed_events (user_id, event_id) VALUES (?, ?)",
+                (user_id, event_id)
+            )
+            conn.commit()
