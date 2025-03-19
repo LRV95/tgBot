@@ -6,6 +6,7 @@ import openpyxl
 import logging
 from config         import ADMIN_ID
 from database       import UserModel, EventModel
+from database.connection import get_db_connection
 from datetime       import datetime
 from functools      import wraps
 from bot.constants  import CITIES, TAGS
@@ -1095,3 +1096,54 @@ async def handle_event_report_create(update: Update, context: ContextTypes.DEFAU
             reply_markup=get_cancel_keyboard()
         )
         return EVENT_REPORT_CREATE
+
+@role_required("admin", "moderator")
+async def moderator_export_reports_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, event_id, report_date, actual_participants, photos_links, summary, feedback FROM event_reports"
+        )
+        reports = cursor.fetchall()
+        conn.close()
+
+        if not reports:
+            await update.message.reply_text("Нет отчетов для экспорта.", reply_markup=get_mod_menu_keyboard())
+            return MOD_MENU
+
+        os.makedirs("data", exist_ok=True)
+        temp_file = os.path.join("data", "reports_export.csv")
+
+        fieldnames = ["id", "event_id", "report_date", "actual_participants", "photos_links", "summary", "feedback"]
+
+        with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in reports:
+                writer.writerow({
+                    "id": row["id"],
+                    "event_id": row["event_id"],
+                    "report_date": row["report_date"],
+                    "actual_participants": row["actual_participants"],
+                    "photos_links": row["photos_links"],
+                    "summary": row["summary"],
+                    "feedback": row["feedback"],
+                })
+
+        with open(temp_file, "rb") as f:
+            await update.message.reply_document(
+                document=f,
+                filename="reports_export.csv",
+                caption="Выгрузка отчетов в CSV формате"
+            )
+
+        os.remove(temp_file)
+        return MOD_MENU
+
+    except Exception as e:
+        logger.error(f"Ошибка при экспорте отчетов CSV: {e}")
+        await update.message.reply_text(
+            "Произошла ошибка при экспорте отчетов.", reply_markup=get_mod_menu_keyboard()
+        )
+        return MOD_MENU
