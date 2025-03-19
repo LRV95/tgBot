@@ -5,11 +5,14 @@ from bot.keyboards.common import get_cancel_keyboard
 from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
                     PROFILE_UPDATE_NAME, PROFILE_TAG_SELECT, REGISTRATION_TAG_SELECT,
                     REGISTRATION_CITY_SELECT, PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU,
-                    EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER, PROFILE_EMPLOYEE_NUMBER_UPDATE)
+                    EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER, PROFILE_EMPLOYEE_NUMBER_UPDATE,
+                    LEADERBOARD_REGION_SELECT, LEADERBOARD_VIEW, EVENT_TAG_SELECT)
 
 from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard, get_main_menu_keyboard,
                            get_volunteer_dashboard_keyboard, get_profile_menu_keyboard, get_events_keyboard,
-                           get_events_filter_keyboard, get_event_details_keyboard, get_events_city_filter_keyboard)
+                           get_events_filter_keyboard, get_event_details_keyboard, get_events_city_filter_keyboard,
+                           get_leaderboard_region_keyboard, get_tag_filter_keyboard_for_region)
+
 from services.ai import ContextRouterAgent
 from database import UserModel, EventModel
 from bot.constants import CITIES, TAGS
@@ -18,6 +21,61 @@ logger = logging.getLogger(__name__)
 
 user_db = UserModel()
 event_db = EventModel()
+
+
+async def handle_event_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = update.message.text.strip()
+
+    # Обработка возврата к выбору региона
+    if text == "↩️ Назад к выбору региона":
+        context.user_data.pop("selected_city", None)
+        await update.message.reply_text(
+            "Выберите регион для фильтрации мероприятий:",
+            reply_markup=get_events_city_filter_keyboard(context.user_data.get("selected_city"))
+        )
+        return GUEST_DASHBOARD
+
+        # Обработка отмены
+    elif text == "❌ Отмена":
+        context.user_data.pop("selected_city", None)
+        context.user_data.pop("selected_tag", None)
+        await update.message.reply_text(
+            "Фильтрация отменена.",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+    # Обработка выбора "Все мероприятия в этом регионе"
+    elif text == "Все мероприятия в этом регионе":
+        context.user_data.pop("selected_tag", None)
+        context.user_data["events_page"] = 0
+        return await handle_events(update, context)
+
+    # Обработка выбора тега
+    for tag in TAGS:
+        if text.startswith(tag):
+            context.user_data["selected_tag"] = tag
+            context.user_data["events_page"] = 0
+            return await handle_events(update, context)
+
+    # Если ввод не распознан
+    await update.message.reply_text(
+        "Пожалуйста, выберите один из доступных вариантов.",
+        reply_markup=get_tag_filter_keyboard_for_region(context.user_data.get("selected_tag"))
+    )
+    return EVENT_TAG_SELECT
+def get_tag_filter_keyboard_for_region(selected_tag=None):
+    """Создает клавиатуру для выбора тегов после выбора региона."""
+    buttons = []
+    # Добавляем кнопки для каждого тега
+    for tag in TAGS:
+        text = f"{tag} {'✓' if tag == selected_tag else ''}"
+        buttons.append([text])
+
+    # Добавляем кнопку "Все мероприятия в этом регионе"
+    buttons.append(["Все мероприятия в этом регионе"])
+    buttons.append(["↩️ Назад к выбору региона", "❌ Отмена"])
+
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def escape_markdown_v2(text):
     """Экранирует специальные символы для Markdown V2."""
@@ -32,6 +90,7 @@ def format_event_details(event):
         return "Информация о мероприятии недоступна"
 
     try:
+        # Форматируем сообщение с проверкой на существование полей
         message = f"*{escape_markdown_v2(event.get('name', 'Без названия'))}*\n\n"
         message += f"📅 Дата: {escape_markdown_v2(event.get('event_date', 'Не указана'))}\n"
         message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
@@ -65,6 +124,7 @@ def format_profile_message(user):
             except:
                 continue
 
+    # Форматируем интересы
     interests = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
     interests_text = "• " + "\n• ".join(
         escape_markdown_v2(interest) for interest in interests) if interests else "Не указаны"
@@ -231,6 +291,12 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         reply = f"Возвращаемся в главное меню!"
         await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
         return MAIN_MENU
+    elif text == "Лидерборд":
+        await update.message.reply_text(
+            "Выберите регион для просмотра рейтинга волонтеров:",
+            reply_markup=get_leaderboard_region_keyboard()
+        )
+        return LEADERBOARD_REGION_SELECT
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
         return VOLUNTEER_DASHBOARD
@@ -373,6 +439,7 @@ async def handle_profile_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
         await update.message.reply_text("Введите новый табельный номер:", reply_markup=get_cancel_keyboard())
         return PROFILE_EMPLOYEE_NUMBER_UPDATE
     elif text == "Изменить интересы":
+        # Загружаем текущие интересы пользователя
         current_tags = [tag.strip() for tag in user.get("tags", "").split(",") if tag.strip()]
         context.user_data["profile_tags"] = current_tags
         await update.message.reply_text("Выберите ваши интересы:", reply_markup=get_tag_selection_keyboard(selected_tags=current_tags))
@@ -500,37 +567,92 @@ async def handle_events(update, context) -> int:
     user = user_db.get_user(user_id)
     page = context.user_data.get("events_page", 0)
     selected_tag = context.user_data.get("selected_tag", None)
+    selected_city = context.user_data.get("selected_city", None)
 
-    # Получаем мероприятия в зависимости от выбранного фильтра
-    if selected_tag and selected_tag != "all":
-        if user and user.get("city"):
-            events = event_db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
-            total_events = event_db.get_events_count_by_tag(selected_tag)
-            if not events:
-                events = event_db.get_events(limit=4, offset=page * 4)
-                total_events = event_db.get_events_count()
-        else:
-            events = event_db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
-            total_events = event_db.get_events_count_by_tag(selected_tag)
-    else:
-        if user and user.get("city"):
-            events = event_db.get_events_by_city(user["city"], limit=4, offset=page * 4)
-            total_events = event_db.get_events_count_by_city(user["city"])
-            if not events:
-                events = event_db.get_events(limit=4, offset=page * 4)
-                total_events = event_db.get_events_count()
-        else:
-            events = event_db.get_events(limit=4, offset=page * 4)
-            total_events = event_db.get_events_count()
+    # Инициализируем message_text значением по умолчанию
+    message_text = "Список мероприятий:"  # Добавьте эту строку в начале функции
 
-    if "selected_city" in context.user_data and context.user_data["selected_city"] != "all":
-        selected_city = context.user_data["selected_city"]
+    # Получаем мероприятия в зависимости от выбранных фильтров
+    if selected_city and selected_tag:
+        # Фильтрация по региону и тегу
+        all_events = event_db.get_all_events()
+        filtered_events = []
+
+        for event in all_events:
+            event_city = event.get("city", "")
+            event_tags = event.get("tags", "").split(",")
+            if event_city == selected_city and selected_tag in event_tags:
+                filtered_events.append(event)
+
+        total_events = len(filtered_events)
+        start_idx = page * 4
+        end_idx = start_idx + 4
+        events = filtered_events[start_idx:end_idx] if start_idx < total_events else []
+
+        message_text = f"Мероприятия в регионе '{selected_city}' по виду волонтерства '{selected_tag}':"
+
+    elif selected_city:
+        # Фильтрация только по региону
         events = event_db.get_events_by_city(selected_city, limit=4, offset=page * 4)
         total_events = event_db.get_events_count_by_city(selected_city)
-        message_text = f"Список мероприятий по регион '{selected_city}':"
-        if not events:
+        message_text = f"Мероприятия в регионе '{selected_city}':"
+
+    elif selected_tag:
+        # Фильтрация только по тегу
+        events = event_db.get_events_by_tag(selected_tag, limit=4, offset=page * 4)
+        total_events = event_db.get_events_count_by_tag(selected_tag)
+        message_text = f"Мероприятия по виду волонтерства '{selected_tag}':"
+
+    else:
+        # Без фильтров - показываем все или по региону пользователя
+        if user and user.get("city"):
+            # Показываем мероприятия в регионе пользователя
+            events = event_db.get_events_by_city(user["city"], limit=4, offset=page * 4)
+            total_events = event_db.get_events_count_by_city(user["city"])
+
+            if not events:
+                # Если в регионе пользователя нет мероприятий, показываем все
+                events = event_db.get_events(limit=4, offset=page * 4)
+                total_events = event_db.get_events_count()
+                message_text = "Все доступные мероприятия:"
+            else:
+                message_text = f"Мероприятия в вашем регионе '{user['city']}':"
+        else:
+            # Показываем все мероприятия
             events = event_db.get_events(limit=4, offset=page * 4)
             total_events = event_db.get_events_count()
+            message_text = "Все доступные мероприятия:"
+
+    if not events:
+        selected_city = context.user_data.get("selected_city")
+        selected_tag = context.user_data.get("selected_tag")
+
+        message = "К сожалению, мероприятий "
+        if selected_city and selected_tag:
+            message += f"в регионе '{selected_city}' по виду волонтерства '{selected_tag}' не найдено."
+        elif selected_city:
+            message += f"в регионе '{selected_city}' не найдено."
+        elif selected_tag:
+            message += f"по виду волонтерства '{selected_tag}' не найдено."
+        else:
+            message += "не найдено."
+
+        message += "\nВыберите действие:"
+
+        # Создаем клавиатуру с кнопками для возврата
+        buttons = [
+            ["🔄 Сбросить фильтры"],
+            ["🔍 Изменить регион"],
+            ["❌ Вернуться в меню волонтера"]
+        ]
+        keyboard = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+
+        # Очистим current_events, чтобы не было конфликта
+        context.user_data["current_events"] = []
+
+        await update.message.reply_text(message, reply_markup=keyboard)
+        return GUEST_DASHBOARD
+
 
     # Получаем список зарегистрированных мероприятий пользователя
     registered = []
@@ -538,47 +660,45 @@ async def handle_events(update, context) -> int:
         if user.get("registered_events") is not None:
             registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
 
-    # Формируем заголовок сообщения
-    if selected_tag and selected_tag != "all":
-        message_text = f"Список мероприятий по тегу '{selected_tag}':"
-    else:
-        message_text = "Список мероприятий:"
+    # Отправляем список мероприятий с клавиатурой
+    await update.message.reply_text(
+        message_text,
+        reply_markup=get_events_keyboard(events, page, 4, total_events, registered_events=registered)
+    )
 
-    # Если мероприятий нет, отправляем сообщение
-    if not events:
-        message_text = "К сожалению, мероприятий не найдено."
-        await update.message.reply_text(message_text, reply_markup=get_volunteer_dashboard_keyboard())
-        return VOLUNTEER_DASHBOARD
+    # Сохраняем текущие мероприятия в контексте для дальнейшей обработки
+    context.user_data["current_events"] = events
+    return GUEST_DASHBOARD
+
+    # Получаем список зарегистрированных мероприятий пользователя
+    registered = []
+    if user and "registered_events" in user:
+        if user.get("registered_events") is not None:
+            registered = [e.strip() for e in user.get("registered_events", "").split(",") if e.strip()]
 
     # Отправляем список мероприятий с клавиатурой
     await update.message.reply_text(
         message_text,
         reply_markup=get_events_keyboard(events, page, 4, total_events, registered_events=registered)
     )
-    
+
     # Сохраняем текущие мероприятия в контексте для дальнейшей обработки
     context.user_data["current_events"] = events
     return GUEST_DASHBOARD
 
+
+# Изменения в функции handle_events_callbacks в файле user.py
 async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     user_id = update.effective_user.id
     user = user_db.get_user(user_id)
     current_events = context.user_data.get("current_events", [])
 
-    if not current_events:
-        await update.message.reply_text(
-            "Произошла ошибка при обработке мероприятий. Попробуйте снова.",
-            reply_markup=get_volunteer_dashboard_keyboard()
-        )
-        return VOLUNTEER_DASHBOARD
-
-    # Обработка выбора мероприятия
+    # ПЕРЕМЕЩАЕМ ЭТОТ БЛОК В НАЧАЛО - обработка выбора мероприятия
     for event in current_events:
         name = event.get("name")
-
         event_text = f"✨ {name}"
-        if user.get("registered_events", "") is not None:
+        if user and user.get("registered_events", "") is not None:
             if str(event['id']) in user.get("registered_events", "").split(","):
                 event_text += " ✅"
 
@@ -592,7 +712,37 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
             )
             return EVENT_DETAILS
 
-    # Обработка навигации
+    # Обработка новых кнопок для случая отсутствия мероприятий
+    if text == "🔄 Сбросить фильтры":
+        context.user_data.pop("selected_tag", None)
+        context.user_data.pop("selected_city", None)
+        context.user_data["events_page"] = 0
+        return await handle_events(update, context)
+
+    elif text == "🔍 Изменить регион":
+        context.user_data.pop("selected_tag", None)
+        await update.message.reply_text(
+            "Выберите регион для фильтрации мероприятий:",
+            reply_markup=get_events_city_filter_keyboard(context.user_data.get("selected_city"))
+        )
+        return GUEST_DASHBOARD
+
+    elif text == "❌ Вернуться в меню волонтера":
+        await update.message.reply_text(
+            "Возвращаемся в меню волонтера",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    # Проверка на пустой список мероприятий
+    if not current_events:
+        await update.message.reply_text(
+            "В данный момент мероприятия недоступны. Возвращаемся в меню волонтера.",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    # Обработка навигации и остальной код...
     if text == "⬅️ Назад":
         page = context.user_data.get("events_page", 0)
         if page > 0:
@@ -604,13 +754,30 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         context.user_data["events_page"] = page + 1
         return await handle_events(update, context)
 
-    elif text == "🔍 Теги":
-        context.user_data.pop("selected_city", None)
+    elif text == "🔍 Регионы":
+        context.user_data.pop("selected_tag", None)
         await update.message.reply_text(
-            "Выберите тег для фильтрации мероприятий:",
-            reply_markup=get_events_filter_keyboard(context.user_data.get("selected_tag"))
+            "Выберите регион для фильтрации мероприятий:",
+            reply_markup=get_events_city_filter_keyboard(context.user_data.get("selected_city"))
         )
         return GUEST_DASHBOARD
+
+    elif text == "❌ Вернуться в меню волонтера":
+        await update.message.reply_text(
+            "Возвращаемся в меню волонтера",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    # Проверяем current_events только если это не одна из кнопок выше
+    if not current_events:
+        # Вместо сообщения об ошибке просто возвращаемся в меню волонтера
+        await update.message.reply_text(
+            "Возвращаемся в меню волонтера",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
 
     elif text == "🔍 Регионы":
         context.user_data.pop("selected_tag", None)
@@ -620,14 +787,11 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         )
         return GUEST_DASHBOARD
 
-    elif text == "Все мероприятия":
-        context.user_data.pop("selected_tag", None)
-        context.user_data["events_page"] = 0
-        return await handle_events(update, context)
-
+    # Обработка кнопки отмены
     elif text == "❌ Отмена":
         return await handle_events(update, context)
 
+    # Обработка кнопки выхода
     elif text == "❌ Выход":
         await update.message.reply_text(
             "Возвращаемся в главное меню",
@@ -635,22 +799,19 @@ async def handle_events_callbacks(update: Update, context: ContextTypes.DEFAULT_
         )
         return VOLUNTEER_DASHBOARD
 
-    # Обработка выбора конкретного тега
-    for tag in TAGS:
-        if text.startswith(tag):
-            context.user_data["selected_tag"] = tag
-            context.user_data.pop("selected_city", None)
-            context.user_data["events_page"] = 0
-            return await handle_events(update, context)
-
-    # Обработка выбора конкретного города
+    # Обработка выбора города из списка
     for city in CITIES:
         if text.startswith(city):
             context.user_data["selected_city"] = city
-            # Сбрасываем выбранный тег, чтобы не было конфликта
             context.user_data.pop("selected_tag", None)
             context.user_data["events_page"] = 0
-            return await handle_events(update, context)
+
+            # Вместо немедленного отображения, предлагаем выбрать теги
+            await update.message.reply_text(
+                f"Вы выбрали регион: {city}\nТеперь выберите вид волонтерства или посмотрите все мероприятия в этом регионе:",
+                reply_markup=get_tag_filter_keyboard_for_region()
+            )
+            return EVENT_TAG_SELECT
 
     return GUEST_DASHBOARD
 
@@ -733,6 +894,7 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
 
 
 async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обработчик ввода кода мероприятия."""
     text = update.message.text
     user_id = update.effective_user.id
 
@@ -760,15 +922,10 @@ async def handle_code_redemption(update: Update, context: ContextTypes.DEFAULT_T
             )
             return EVENT_CODE_REDEEM
 
-        if event_db.is_user_registered_for_event(user_id, str(found_event['id'])):
-            if event_db.has_completed_event(user_id, str(found_event['id'])):
-                await update.message.reply_text(
-                    "Вы уже получили баллы за это мероприятие.",
-                    reply_markup=get_volunteer_dashboard_keyboard()
-                )
-                return MAIN_MENU
+        # Проверяем, был ли зарегистрирован пользователь на мероприятие
 
-            # Начисляем баллы и отмечаем мероприятие как пройденное
+        if event_db.is_user_registered_for_event(user_id, str(found_event['id'])):
+            # Начисляем баллы
             user = user_db.get_user(user_id)
             points = found_event.get("participation_points", 0)
             current_score = user.get("score", 0)
@@ -916,6 +1073,96 @@ async def handle_event_details(update: Update, context: ContextTypes.DEFAULT_TYP
         return EVENT_DETAILS
 
     return EVENT_DETAILS
+
+
+async def handle_leaderboard_region_select(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обрабатывает выбор региона для просмотра лидерборда."""
+    text = update.message.text
+
+    if text == "❌ Отмена":
+        await update.message.reply_text(
+            "Возвращаемся в домашнюю страницу волонтера.",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    # Проверяем, является ли выбранный регион допустимым
+    if text in CITIES:
+        context.user_data["selected_leaderboard_region"] = text
+        return await show_leaderboard(update, context)
+    else:
+        await update.message.reply_text(
+            "Пожалуйста, выберите регион из списка.",
+            reply_markup=get_leaderboard_region_keyboard()
+        )
+        return LEADERBOARD_REGION_SELECT
+
+
+async def show_leaderboard(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Отображает лидерборд волонтеров по выбранному региону."""
+    selected_region = context.user_data.get("selected_leaderboard_region")
+
+    if not selected_region:
+        await update.message.reply_text(
+            "Ошибка: не выбран регион. Пожалуйста, попробуйте снова.",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    try:
+        # Получаем всех пользователей выбранного региона, отсортированных по баллам
+        users = user_db.get_all_users()
+
+        # Фильтруем пользователей по выбранному региону и сортируем по баллам
+        region_users = [user for user in users if user.get("city") == selected_region]
+        region_users.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+        if not region_users:
+            await update.message.reply_markdown_v2(
+                f"*🏆 Лидерборд волонтеров региона*\n\n"
+                f"_{escape_markdown_v2(selected_region)}_\n\n"
+                f"В этом регионе пока нет волонтеров с баллами\\."
+            )
+        else:
+            # Формируем сообщение с рейтингом
+            message = [
+                f"*🏆 Лидерборд волонтеров региона*\n",
+                f"_{escape_markdown_v2(selected_region)}_\n\n"
+            ]
+
+            # Добавляем топ-10 волонтеров (или меньше, если их меньше 10)
+            top_limit = min(10, len(region_users))
+            for i, user in enumerate(region_users[:top_limit], 1):
+                name = escape_markdown_v2(user.get("first_name", "Неизвестно"))
+                score = user.get("score", 0)
+
+                # Добавляем медали для топ-3
+                medal = ""
+                if i == 1:
+                    medal = "🥇 "
+                elif i == 2:
+                    medal = "🥈 "
+                elif i == 3:
+                    medal = "🥉 "
+
+                message.append(f"{medal}*{i}\\. {name}* \\- {score} баллов")
+
+            await update.message.reply_markdown_v2("\n".join(message))
+
+        # Кнопка возврата
+        await update.message.reply_text(
+            "Выберите действие:",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
+
+    except Exception as e:
+        logger.error(f"Ошибка при формировании лидерборда: {e}")
+        await update.message.reply_text(
+            "Произошла ошибка при загрузке лидерборда. Пожалуйста, попробуйте позже.",
+            reply_markup=get_volunteer_dashboard_keyboard()
+        )
+        return VOLUNTEER_DASHBOARD
 
 async def handle_employee_number_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user_id = update.effective_user.id

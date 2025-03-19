@@ -167,3 +167,20 @@ class UserModel(Database):
             users = [dict(zip(columns, row)) for row in rows]
             return users
 
+
+def get_users_by_region(self, region, sort_by_score=True):
+    """Возвращает список пользователей из указанного региона."""
+    with self.connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE city = ?", (region,))
+        rows = cursor.fetchall()
+
+        # Преобразуем строки в словари
+        columns = [description[0] for description in cursor.description]
+        users = [dict(zip(columns, row)) for row in rows]
+
+        # Сортируем по баллам, если требуется
+        if sort_by_score:
+            users.sort(key=lambda x: x.get('score', 0), reverse=True)
+
+        return users

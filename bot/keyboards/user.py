@@ -21,9 +21,16 @@ def get_main_menu_keyboard(role="user"):
 def get_volunteer_dashboard_keyboard():
     return ReplyKeyboardMarkup([
         ["Профиль", "Текущие мероприятия"],
-        ["Бонусы", "Ввести код", "Информация"],
-        ["Выход"]
+        ["Бонусы", "Ввести код", "Лидерборд"],
+        ["Информация", "Выход"]
     ], resize_keyboard=True)
+
+def get_leaderboard_region_keyboard():
+    buttons = []
+    for city in CITIES:
+        buttons.append([city])
+    buttons.append(["❌ Отмена"])
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_profile_menu_keyboard():
     return ReplyKeyboardMarkup(
@@ -57,4 +64,14 @@ def get_city_selection_keyboard(selected_cities=None):
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
 def get_ai_chat_keyboard():
-    return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True) 
+    return ReplyKeyboardMarkup([["❌ Отмена"]], resize_keyboard=True)
+
+def get_tag_filter_keyboard_for_region(selected_tag=None):
+    buttons = []
+    for tag in TAGS:
+        text = f"{tag} {'✓' if tag == selected_tag else ''}"
+        buttons.append([text])
+    buttons.append(["Все мероприятия в этом регионе"])
+    buttons.append(["↩️ Назад к выбору региона", "❌ Отмена"])
+
+    return ReplyKeyboardMarkup(buttons, resize_keyboard=True)

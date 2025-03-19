@@ -26,7 +26,7 @@ def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_e
         buttons.append(nav_buttons)
 
     # Добавляем фильтры и выход на последней строке
-    buttons.append(["🔍 Теги", "🔍 Регионы", "❌ Выход"])
+    buttons.append(["🔍 Регионы", "❌ Выход"])
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
 
@@ -64,6 +64,5 @@ def get_events_city_filter_keyboard(selected_city=None):
     for city in CITIES:
         text = f"{city} {'✓' if city == selected_city else ''}"
         buttons.append([text])
-    buttons.append(["Все мероприятия"])
     buttons.append(["❌ Отмена"])
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)

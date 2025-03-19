@@ -5,7 +5,9 @@ from .user import (
     get_profile_menu_keyboard,
     get_tag_selection_keyboard,
     get_city_selection_keyboard,
-    get_ai_chat_keyboard
+    get_ai_chat_keyboard,
+    get_leaderboard_region_keyboard,
+    get_tag_filter_keyboard_for_region  # Добавьте эту строку
 )
 from .events import (
     get_events_keyboard,
@@ -38,5 +40,7 @@ __all__ = [
     'get_city_selection_keyboard_with_cancel',
     'get_tag_selection_keyboard_with_cancel',
     'get_csv_export_menu_keyboard',
-    'get_events_city_filter_keyboard'
-] 
+    'get_events_city_filter_keyboard',
+    'get_leaderboard_region_keyboard',
+    'get_tag_filter_keyboard_for_region'
+]

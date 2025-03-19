@@ -19,7 +19,7 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU, EVENT_REPORT_CREATE,
                         EVENT_REPORT_PARTICIPANTS, EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY,
                         EVENT_REPORT_FEEDBACK, PROFILE_EMPLOYEE_NUMBER_UPDATE, MOD_EVENT_EDIT_SELECT,
-                        MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE)
+                        MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, LEADERBOARD_REGION_SELECT, EVENT_TAG_SELECT)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -37,7 +37,8 @@ from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
                                handle_profile_tag_selection, handle_events_callbacks,
                                handle_registration_city_selection, handle_events, handle_profile_city_selection,
-                               handle_code_redemption, handle_employee_number, handle_employee_number_update)
+                               handle_code_redemption, handle_employee_number, handle_employee_number_update,
+                               handle_event_tag_selection, handle_leaderboard_region_select)
 
 def admin_required(func):
     def wrapper(update: Update, context: CallbackContext):
@@ -214,6 +215,12 @@ class VolunteerBot:
                 ],
                 MOD_EVENT_EDIT_VALUE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_edit_value)
+                ],
+                LEADERBOARD_REGION_SELECT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_leaderboard_region_select)
+                ],
+                EVENT_TAG_SELECT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_tag_selection)
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]
