@@ -317,8 +317,9 @@ async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
-    if text == "Добавить мероприятия":
-        await update.message.reply_text("Функционал модерирования мероприятий в разработке.")
+    if text == "Создать мероприятие":
+        await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
+        return MOD_EVENT_NAME
 
     elif text == "Редактировать мероприятие":
         await update.message.reply_text("Введите ID мероприятия для редактирования:", reply_markup=get_cancel_keyboard())
