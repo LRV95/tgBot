@@ -164,14 +164,11 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 city = row.get("Локация", "")
                 creator = row.get("Организатор", "")
                 description = row.get("Описание", "")
-                participation_points = row.get("Ценность", "")
+                participation_points = 5
                 tags = row.get("Теги", "")
                 code = row.get("Код", "")
                 owner = "admin"
-                
-                if participation_points == "":
-                    participation_points = 5
-                
+
                 # Добавляем мероприятие в базу данных
                 try:
                     event_db.add_event(
@@ -456,20 +453,17 @@ async def moderator_handle_event_description(update: Update, context: ContextTyp
         return await handle_event_creation_cancel(update, context)
 
     context.user_data["event_description"] = text
-    await update.message.reply_text("💰 Введите ценность мероприятия (количество баллов):", reply_markup=get_cancel_keyboard())
-    return MOD_EVENT_POINTS
+    context.user_data["event_participation_points"] = 5
+
+    await update.message.reply_text(
+        "🏷️ Выберите теги мероприятия:",
+        reply_markup=get_tag_selection_keyboard_with_cancel()
+    )
+    context.user_data["selected_tags"] = []
+    return MOD_EVENT_TAGS
 
 async def moderator_handle_event_participation_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    text = update.message.text.strip()
-    if text == "❌ Отмена":
-        return await handle_event_creation_cancel(update, context)
-
-    if not text.isdigit():
-        await update.message.reply_text("❌ Ценность мероприятия должна быть числом. Попробуйте снова.", 
-                                      reply_markup=get_cancel_keyboard())
-        return MOD_EVENT_POINTS
-    
-    context.user_data["event_participation_points"] = text
+    context.user_data["event_participation_points"] = 5
     await update.message.reply_text(
         "🏷️ Выберите теги мероприятия:",
         reply_markup=get_tag_selection_keyboard_with_cancel()

@@ -32,7 +32,6 @@ def format_event_details(event):
         return "Информация о мероприятии недоступна"
 
     try:
-        # Форматируем сообщение с проверкой на существование полей
         message = f"*{escape_markdown_v2(event.get('name', 'Без названия'))}*\n\n"
         message += f"📅 Дата: {escape_markdown_v2(event.get('event_date', 'Не указана'))}\n"
         message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
