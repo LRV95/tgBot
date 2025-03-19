@@ -1,0 +1,28 @@
+# Виртуальное окружение
+venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+pip/
+
+# Конфигурация
+.env
+config.py
+
+# База данных и данные
+database/*.db
+data/
+*.xlsx
+*.csv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Логи
+*.log
