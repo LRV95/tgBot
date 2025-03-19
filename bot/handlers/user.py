@@ -37,6 +37,7 @@ def format_event_details(event):
         message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
         message += f"📍 Регион: {escape_markdown_v2(event.get('city', 'Не указан'))}\n"
         message += f"👥 Организатор: {escape_markdown_v2(event.get('creator', 'Не указан'))}\n"
+        message += f"\n🏷️ Теги: {escape_markdown_v2(event.get('tags', 'Не указаны'))}\n"
         message += f"\n📝 Описание: {escape_markdown_v2(event.get('description', 'Не указано'))}\n"
         message += f"\n💰 Баллы за участие: {event.get('participation_points', 0)}\n"
         message += f"👥 Количество участников: {event.get('participants_count', 0)}\n"
@@ -45,6 +46,7 @@ def format_event_details(event):
     except Exception as e:
         logger.error(f"Ошибка при форматировании деталей мероприятия: {e}")
         return "Ошибка при отображении информации о мероприятии"
+
 
 
 def format_profile_message(user):
