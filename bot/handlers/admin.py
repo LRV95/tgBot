@@ -21,7 +21,8 @@ from bot.states     import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_U
                             MOD_EVENT_CONFIRM, MOD_EVENT_POINTS, MOD_EVENT_TAGS,
                             MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
                             ADMIN_SET_MODERATOR, CSV_EXPORT_MENU, EVENT_REPORT_CREATE, EVENT_REPORT_PARTICIPANTS,
-                            EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY, EVENT_REPORT_FEEDBACK)
+                            EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY, EVENT_REPORT_FEEDBACK, MOD_EVENT_EDIT_SELECT,
+                            MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE)
 
 logger = logging.getLogger(__name__)
 
@@ -316,9 +317,15 @@ async def moderation_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_moderation_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
-    if text == "Создать мероприятие":
-        await update.message.reply_text("✨ Введите название мероприятия:", reply_markup=get_cancel_keyboard())
-        return MOD_EVENT_NAME
+    if text == "Добавить мероприятия":
+        await update.message.reply_text("Функционал модерирования мероприятий в разработке.")
+
+    elif text == "Редактировать мероприятие":
+        await update.message.reply_text("Введите ID мероприятия для редактирования:", reply_markup=get_cancel_keyboard())
+        return MOD_EVENT_EDIT_SELECT
+
+    elif text == "Удалить мероприятие":
+        return await moderator_delete_event(update, context)
 
     elif text == "Мои мероприятия":
         return await moderator_view_events(update, context)
@@ -1147,3 +1154,76 @@ async def moderator_export_reports_csv(update: Update, context: ContextTypes.DEF
             "Произошла ошибка при экспорте отчетов.", reply_markup=get_mod_menu_keyboard()
         )
         return MOD_MENU
+
+async def handle_event_edit_select(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    event_id_str = update.message.text.strip()
+    if event_id_str in ["❌ Отмена", "Отмена"]:
+        await update.message.reply_text("Редактирование отменено.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+    try:
+        event_id = int(event_id_str)
+    except ValueError:
+        await update.message.reply_text("Пожалуйста, введите корректный числовой ID мероприятия:")
+        return MOD_EVENT_EDIT_SELECT
+
+    event = event_db.get_event_by_id(event_id)
+    if not event:
+        await update.message.reply_text("Мероприятие не найдено. Введите корректный ID или 'Отмена':")
+        return MOD_EVENT_EDIT_SELECT
+
+    context.user_data["edit_event_id"] = event_id
+    # Выводим клавиатуру выбора поля для редактирования
+    keyboard = ReplyKeyboardMarkup([
+        ["Название", "Дата"],
+        ["Время", "Регион"],
+        ["Описание", "Теги"],
+        ["Код", "Отмена"]
+    ], resize_keyboard=True)
+    await update.message.reply_text("Выберите поле для редактирования:", reply_markup=keyboard)
+    return MOD_EVENT_EDIT_FIELD
+
+async def handle_event_edit_field(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    field = update.message.text.strip()
+    if field in ["Отмена", "❌ Отмена"]:
+        await update.message.reply_text("Редактирование отменено.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+    valid_fields = ["Название", "Дата", "Время", "Регион", "Описание", "Теги", "Код"]
+    if field not in valid_fields:
+        await update.message.reply_text("Пожалуйста, выберите одно из предложенных полей.")
+        return MOD_EVENT_EDIT_FIELD
+
+    context.user_data["edit_field"] = field
+    await update.message.reply_text(f"Введите новое значение для поля {field}:", reply_markup=get_cancel_keyboard())
+    return MOD_EVENT_EDIT_VALUE
+
+async def handle_event_edit_value(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    new_value = update.message.text.strip()
+    if new_value in ["Отмена", "❌ Отмена"]:
+        await update.message.reply_text("Редактирование отменено.", reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
+
+    event_id = context.user_data.get("edit_event_id")
+    field = context.user_data.get("edit_field")
+    if not event_id or not field:
+        await update.message.reply_text("Ошибка: не удалось определить мероприятие или поле.")
+        return MOD_MENU
+
+    # Отображаем понятные названия полей в БД
+    field_mapping = {
+        "Название": "name",
+        "Дата": "event_date",
+        "Время": "start_time",
+        "Регион": "city",
+        "Описание": "description",
+        "Теги": "tags",
+        "Код": "code"
+    }
+    db_field = field_mapping.get(field)
+    try:
+        # Предполагается, что в модели EventModel добавлен метод update_event_field
+        event_db.update_event_field(event_id, db_field, new_value)
+        await update.message.reply_text(f"Поле {field} успешно обновлено.", reply_markup=get_mod_menu_keyboard())
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении мероприятия: {e}")
+        await update.message.reply_text("Произошла ошибка при обновлении мероприятия.", reply_markup=get_mod_menu_keyboard())
+    return MOD_MENU

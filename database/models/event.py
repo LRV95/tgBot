@@ -267,3 +267,10 @@ class EventModel(Database):
                 (user_id, event_id)
             )
             conn.commit()
+
+    def update_event_field(self, event_id, field, new_value):
+        with self.connect() as conn:
+            cursor = conn.cursor()
+            query = f"UPDATE events SET {field} = ? WHERE id = ?"
+            cursor.execute(query, (new_value, event_id))
+            conn.commit()
