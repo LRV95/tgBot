@@ -9,6 +9,14 @@ class ProjectModel:
         conn.close()
         return project
 
+    def get_project_by_id(self, project_id: int):
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM projects WHERE id = ?", (project_id,))
+        project = cursor.fetchone()
+        conn.close()
+        return project
+
     def add_project(self, name: str, description: str, responsible: str):
         conn = get_db_connection()
         cursor = conn.cursor()

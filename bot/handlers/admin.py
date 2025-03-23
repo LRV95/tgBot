@@ -172,7 +172,7 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
                 tags = row.get("Теги", "").strip()
                 code = row.get("Код", "").strip()
                 owner = "admin"
-                project_id = ""
+                project_id = None
 
                 try:
                     event_db.add_event(
@@ -504,7 +504,7 @@ async def moderator_handle_event_creator(update: Update, context: ContextTypes.D
         return await handle_event_creation_cancel(update, context)
     context.user_data["event_creator"] = text
     await update.message.reply_text(
-        "💰 Количество баллов за участие: 5",
+        "💰 Количество баллов за участие: 5. Напишите любое сообщение для продолжение.",
         reply_markup=get_cancel_keyboard()
     )
     return MOD_EVENT_POINTS
@@ -515,23 +515,23 @@ async def moderator_handle_event_description(update: Update, context: ContextTyp
         return await handle_event_creation_cancel(update, context)
     context.user_data["event_description"] = text
     await update.message.reply_text(
-        "Введите название проекта для мероприятия (если проект не нужен, введите '❌ Отмена' или оставьте поле пустым):",
+        "Введите название проекта для мероприятия (если проект не нужен, введите 'Отмена' или оставьте поле пустым):",
         reply_markup=get_cancel_keyboard()
     )
     return MOD_EVENT_PROJECT
 
 async def moderator_handle_event_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    project_name = update.message.text.strip()
-    if project_name in ["❌ Отмена", "Отмена", ""]:
+    project_id = update.message.text.strip()
+    if project_id in ["❌ Отмена", "Отмена", ""]:
         context.user_data["project_id"] = None
     else:
         project_db = ProjectModel()
-        project = project_db.get_project_by_name(project_name)
+        project = project_db.get_project_by_id(int(project_id))
         if project:
             context.user_data["project_id"] = project["id"]
         else:
             await update.message.reply_text(
-                "Проект с таким названием не найден. Если хотите создать мероприятие без проекта, нажмите '❌ Отмена'. Введите корректное название проекта или '❌ Отмена':",
+                "Проект с таким названием не найден. Если хотите создать мероприятие без проекта, нажмите '❌ Отмена'.:",
                 reply_markup=get_cancel_keyboard()
             )
             return MOD_EVENT_PROJECT
@@ -618,7 +618,7 @@ async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFA
         f"⏰ *Время:* {context.user_data['event_time']}\n"
         f"📍 *Локация:* {context.user_data['event_city']}\n"
         f"👤 *Организатор:* {context.user_data['event_creator']}\n"
-        f"🚀 *Проект:* {context.user_data.get('event_project', 'Не указан')}\n"
+        f"🚀 *Проект:* {context.user_data['project_id']}\n"
         f"📝 *Описание:* {context.user_data['event_description']}\n"
         f"💰 *Ценность:* {context.user_data['event_participation_points']}\n"
         f"🏷️ *Теги:* {context.user_data['event_tags']}\n"
@@ -890,7 +890,7 @@ async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFA
         temp_file = os.path.join("data", "events_export.csv")
 
         fieldnames = ["id", "name", "event_date", "start_time", "city", "creator", "description",
-                      "participation_points", "participants_count", "tags", "code", "owner"]
+                      "participation_points", "participants_count", "tags", "code", "owner", "project_id"]
 
         with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
@@ -908,7 +908,8 @@ async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFA
                     "participants_count": event.get("participants_count", 0),
                     "tags": event.get("tags", ""),
                     "code": event.get("code", ""),
-                    "owner": event.get("owner", "")
+                    "owner": event.get("owner", ""),
+                    "project_id": event.get("project_id", "")
                 })
 
         with open(temp_file, "rb") as f:

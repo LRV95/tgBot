@@ -13,6 +13,7 @@ from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, ge
                            get_events_filter_keyboard, get_event_details_keyboard, get_events_city_filter_keyboard,
                            get_leaderboard_region_keyboard, get_tag_filter_keyboard_for_region)
 
+from database.models.project import ProjectModel
 from services.ai import ContextRouterAgent
 from database import UserModel, EventModel
 from bot.constants import CITIES, TAGS
@@ -90,12 +91,18 @@ def format_event_details(event):
         return "Информация о мероприятии недоступна"
 
     try:
-        # Форматируем сообщение с проверкой на существование полей
         message = f"*{escape_markdown_v2(event.get('name', 'Без названия'))}*\n\n"
         message += f"📅 Дата: {escape_markdown_v2(event.get('event_date', 'Не указана'))}\n"
         message += f"⏰ Время: {escape_markdown_v2(event.get('start_time', 'Не указано'))}\n"
         message += f"📍 Регион: {escape_markdown_v2(event.get('city', 'Не указан'))}\n"
         message += f"👥 Организатор: {escape_markdown_v2(event.get('creator', 'Не указан'))}\n"
+        # Новая строка для вывода информации о проекте
+        if event.get("project_id"):
+            project_db = ProjectModel()
+            project = project_db.get_project_by_id(event.get("project_id"))
+            project_info = escape_markdown_v2(project.get("name", str(event.get("project_id")))) if project else escape_markdown_v2(str(event.get("project_id")))
+            message += f"\n🏗️ Проект: {project_info}\n"
+
         message += f"\n🏷️ Теги: {escape_markdown_v2(event.get('tags', 'Не указаны'))}\n"
         message += f"\n📝 Описание: {escape_markdown_v2(event.get('description', 'Не указано'))}\n"
         message += f"\n💰 Баллы за участие: {event.get('participation_points', 0)}\n"
@@ -105,7 +112,6 @@ def format_event_details(event):
     except Exception as e:
         logger.error(f"Ошибка при форматировании деталей мероприятия: {e}")
         return "Ошибка при отображении информации о мероприятии"
-
 
 
 def format_profile_message(user):

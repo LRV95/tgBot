@@ -2,21 +2,21 @@ from telegram import ReplyKeyboardMarkup
 from bot.constants import TAGS
 from bot.constants import CITIES
 
+
 def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_events=None):
     if registered_events is None:
         registered_events = []
     buttons = []
-    
-    # Добавляем кнопки для каждого мероприятия
+
     for event in events:
         name = event.get("name")
-        # Добавляем статус регистрации к названию
         text = f"✨ {name}"
+        if event.get("project_id"):
+            text += " 🏗️"
         if str(event['id']) in registered_events:
             text += " ✅"
         buttons.append([text])
 
-    # Добавляем кнопки навигации на отдельной строке
     nav_buttons = []
     if page > 0:
         nav_buttons.append("⬅️ Назад")
@@ -24,8 +24,6 @@ def get_events_keyboard(events, page=0, page_size=4, total_count=0, registered_e
         nav_buttons.append("Вперед ➡️")
     if nav_buttons:
         buttons.append(nav_buttons)
-
-    # Добавляем фильтры и выход на последней строке
     buttons.append(["🔍 Регионы", "❌ Выход"])
 
     return ReplyKeyboardMarkup(buttons, resize_keyboard=True)
