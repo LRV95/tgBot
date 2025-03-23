@@ -20,10 +20,9 @@ class Database:
 
     @contextmanager
     def connect(self):
-        """Контекстный менеджер для соединения с базой данных."""
-        conn = None
+        conn = sqlite3.connect(self.db_name, check_same_thread=False, timeout=20)
+        conn.row_factory = sqlite3.Row
         try:
-            conn = sqlite3.connect(self.db_name, check_same_thread=False, timeout=20)
             yield conn
         except sqlite3.Error as e:
             logger.error(f"Ошибка при подключении к базе данных: {e}")
@@ -31,7 +30,6 @@ class Database:
         finally:
             if conn:
                 conn.close()
-
     def create_tables(self):
         """Создает таблицы в базе данных."""
         try:

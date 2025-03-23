@@ -23,7 +23,8 @@ from bot.states     import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_U
                             MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
                             ADMIN_SET_MODERATOR, CSV_EXPORT_MENU, EVENT_REPORT_CREATE, EVENT_REPORT_PARTICIPANTS,
                             EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY, EVENT_REPORT_FEEDBACK, MOD_EVENT_EDIT_SELECT,
-                            MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, MOD_EVENT_PROJECT, PROJECTS_CSV_UPLOAD)
+                            MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, MOD_EVENT_PROJECT, PROJECTS_CSV_UPLOAD,
+                            ADMIN_PROJECT_EXPORT)
 
 
 logger = logging.getLogger(__name__)
@@ -272,6 +273,8 @@ async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFA
     elif text == "Загрузить проекты из CSV":
         await update.message.reply_text("Отправьте CSV файл с проектами:")
         return PROJECTS_CSV_UPLOAD
+    elif text == "Выгрузить мероприятия по проекту":
+        return await export_events_by_project_csv(update, context)
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
         user_record = user_db.get_user(update.effective_user.id)
@@ -896,20 +899,21 @@ async def moderator_export_events_csv(update: Update, context: ContextTypes.DEFA
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             for event in events:
+                row = dict(event)
                 writer.writerow({
-                    "id": event.get("id", ""),
-                    "name": event.get("name", ""),
-                    "event_date": event.get("event_date", ""),
-                    "start_time": event.get("start_time", ""),
-                    "city": event.get("city", ""),
-                    "creator": event.get("creator", ""),
-                    "description": event.get("description", ""),
-                    "participation_points": event.get("participation_points", 0),
-                    "participants_count": event.get("participants_count", 0),
-                    "tags": event.get("tags", ""),
-                    "code": event.get("code", ""),
-                    "owner": event.get("owner", ""),
-                    "project_id": event.get("project_id", "")
+                    "id": row.get("id", ""),
+                    "name": row.get("name", ""),
+                    "event_date": row.get("event_date", ""),
+                    "start_time": row.get("start_time", ""),
+                    "city": row.get("city", ""),
+                    "creator": row.get("creator", ""),
+                    "description": row.get("description", ""),
+                    "participation_points": row.get("participation_points", 0),
+                    "participants_count": row.get("participants_count", 0),
+                    "tags": row.get("tags", ""),
+                    "code": row.get("code", ""),
+                    "owner": row.get("owner", ""),
+                    "project_id": row.get("project_id", "")
                 })
 
         with open(temp_file, "rb") as f:
@@ -947,17 +951,22 @@ async def moderator_export_users_csv(update: Update, context: ContextTypes.DEFAU
         with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
-            for user in users:
+            for event in events:
+                row = dict(event)  # Преобразуем sqlite3.Row в словарь
                 writer.writerow({
-                    "id": user.get("id", ""),
-                    "first_name": user.get("first_name", ""),
-                    "telegram_tag": user.get("telegram_tag", ""),
-                    "employee_number": user.get("employee_number", ""),
-                    "role": user.get("role", ""),
-                    "score": user.get("score", 0),
-                    "registered_events": user.get("registered_events", ""),
-                    "tags": user.get("tags", ""),
-                    "city": user.get("city", "")
+                    "id": row.get("id", ""),
+                    "name": row.get("name", ""),
+                    "event_date": row.get("event_date", ""),
+                    "start_time": row.get("start_time", ""),
+                    "city": row.get("city", ""),
+                    "creator": row.get("creator", ""),
+                    "description": row.get("description", ""),
+                    "participation_points": row.get("participation_points", 0),
+                    "participants_count": row.get("participants_count", 0),
+                    "tags": row.get("tags", ""),
+                    "code": row.get("code", ""),
+                    "owner": row.get("owner", ""),
+                    "project_id": row.get("project_id", "")
                 })
 
         with open(temp_file, "rb") as f:
@@ -1311,3 +1320,81 @@ async def handle_event_edit_value(update: Update, context: ContextTypes.DEFAULT_
         await update.message.reply_text("Произошла ошибка при обновлении мероприятия.", reply_markup=get_mod_menu_keyboard())
     return MOD_MENU
 
+@role_required("admin")
+async def export_events_by_project_csv(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Запрашивает у администратора ID проекта для экспорта мероприятий."""
+    await update.message.reply_text(
+        "Введите ID проекта для выгрузки мероприятий:",
+        reply_markup=get_cancel_keyboard()
+    )
+    return ADMIN_PROJECT_EXPORT
+
+async def handle_project_export_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    project_id_text = update.message.text.strip()
+    if project_id_text in ["❌ Отмена", "Отмена"]:
+        await update.message.reply_text("Экспорт отменён.", reply_markup=get_admin_menu_keyboard())
+        return ADMIN_MENU
+    try:
+        project_id = int(project_id_text)
+    except ValueError:
+        await update.message.reply_text(
+            "Пожалуйста, введите корректное числовое значение ID проекта.",
+            reply_markup=get_cancel_keyboard()
+        )
+        return ADMIN_PROJECT_EXPORT
+
+    from database.core import Database
+    db = Database()
+    with db.connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            '''SELECT id, name, event_date, start_time, city, creator, description,
+                      participation_points, participants_count, tags, code, owner, project_id
+               FROM events WHERE project_id = ?''',
+            (project_id,)
+        )
+        events = cursor.fetchall()
+
+    if not events:
+        await update.message.reply_text(
+            "Для заданного ID проекта мероприятия не найдены.",
+            reply_markup=get_admin_menu_keyboard()
+        )
+        return ADMIN_MENU
+
+    import os, csv
+    os.makedirs("data", exist_ok=True)
+    temp_file = os.path.join("data", f"events_project_{project_id}_export.csv")
+    fieldnames = ["id", "name", "event_date", "start_time", "city", "creator", "description",
+                  "participation_points", "participants_count", "tags", "code", "owner", "project_id"]
+
+    with open(temp_file, "w", newline="", encoding="utf-8") as csvfile:
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for event in events:
+            row = dict(event)  # Преобразуем sqlite3.Row в словарь
+            writer.writerow({
+                "id": row.get("id", ""),
+                "name": row.get("name", ""),
+                "event_date": row.get("event_date", ""),
+                "start_time": row.get("start_time", ""),
+                "city": row.get("city", ""),
+                "creator": row.get("creator", ""),
+                "description": row.get("description", ""),
+                "participation_points": row.get("participation_points", 0),
+                "participants_count": row.get("participants_count", 0),
+                "tags": row.get("tags", ""),
+                "code": row.get("code", ""),
+                "owner": row.get("owner", ""),
+                "project_id": row.get("project_id", "")
+            })
+
+    with open(temp_file, "rb") as f:
+        await update.message.reply_document(
+            document=f,
+            filename=os.path.basename(temp_file),
+            caption=f"Выгрузка мероприятий для проекта с ID {project_id} в CSV формате"
+        )
+
+    os.remove(temp_file)
+    return ADMIN_MENU
