@@ -2,7 +2,6 @@
 
 import os
 import csv
-import openpyxl
 import logging
 from config         import ADMIN_ID
 from database       import UserModel, EventModel
@@ -10,8 +9,10 @@ from database.connection import get_db_connection
 from datetime       import datetime
 from functools      import wraps
 from bot.constants  import CITIES, TAGS
-from telegram       import ReplyKeyboardRemove, Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
-from telegram.ext   import ContextTypes, ConversationHandler
+from telegram       import ReplyKeyboardRemove, Update, ReplyKeyboardMarkup
+from telegram.ext   import ContextTypes
+from database.models.project import ProjectModel
+
 from bot.keyboards  import (get_admin_menu_keyboard, get_mod_menu_keyboard, get_city_selection_keyboard, get_tag_selection_keyboard,
                            get_cancel_keyboard, get_city_selection_keyboard_with_cancel, get_tag_selection_keyboard_with_cancel,
                            get_confirm_keyboard, get_csv_export_menu_keyboard)
@@ -22,7 +23,8 @@ from bot.states     import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_DELETE, MOD_EVENT_U
                             MOD_EVENT_CREATOR, MOD_EVENT_CODE, ADMIN_FIND_USER_ID, ADMIN_FIND_USER_NAME,
                             ADMIN_SET_MODERATOR, CSV_EXPORT_MENU, EVENT_REPORT_CREATE, EVENT_REPORT_PARTICIPANTS,
                             EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY, EVENT_REPORT_FEEDBACK, MOD_EVENT_EDIT_SELECT,
-                            MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE)
+                            MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, MOD_EVENT_PROJECT, PROJECTS_CSV_UPLOAD)
+
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +149,64 @@ async def load_events_csv(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 @role_required("admin")
 async def process_events_csv_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработчик загрузки CSV файла с мероприятиями."""
+    """Обработчик загрузки CSV файла с мероприятиями согласно новой схеме БД."""
+    try:
+        file = await context.bot.get_file(update.message.document.file_id)
+        data_folder = os.path.join(".", "data")
+        os.makedirs(data_folder, exist_ok=True)
+        temp_path = os.path.join(data_folder, update.message.document.file_name)
+        await file.download_to_drive(custom_path=temp_path)
+        count = 0
+        await update.message.reply_markdown("*📥 Старт обработки CSV файла с мероприятиями...*")
+
+        with open(temp_path, newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                name = row.get("Название", "").strip()
+                event_date = row.get("Дата", "").strip()
+                start_time = row.get("Время", "").strip()
+                city = row.get("Локация", "").strip()
+                creator = row.get("Организатор", "").strip()
+                description = row.get("Описание", "").strip()
+                participation_points = 5
+                tags = row.get("Теги", "").strip()
+                code = row.get("Код", "").strip()
+                owner = "admin"
+                project_id = ""
+
+                try:
+                    event_db.add_event(
+                        name=name,
+                        event_date=event_date,
+                        start_time=start_time,
+                        city=city,
+                        creator=creator,
+                        description=description,
+                        participation_points=participation_points,
+                        tags=tags,
+                        code=code,
+                        owner=owner,
+                        project_id=project_id
+                    )
+                    count += 1
+                    await update.message.reply_markdown(f"*✅ Мероприятие '{name}' успешно добавлено.*")
+                except Exception as e:
+                    logger.error(f"Ошибка при добавлении мероприятия '{name}': {e}")
+
+        os.remove(temp_path)
+        await update.message.reply_markdown(f"*✅ CSV обработан успешно.* Добавлено мероприятий: _{count}_.")
+    except Exception as e:
+        logger.error(f"Ошибка при обработке CSV файла с мероприятиями: {e}")
+        await update.message.reply_markdown("*🚫 Ошибка при обработке CSV файла с мероприятиями.*")
+    return MAIN_MENU
+
+
+@role_required("admin")
+async def process_projects_csv_document(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Обработчик загрузки CSV файла с проектами.
+    Ожидается, что CSV содержит столбцы "Название", "Описание" и "Ответственный".
+    """
+    import csv
     try:
         file = await context.bot.get_file(update.message.document.file_id)
         data_folder = os.path.join(".", "data")
@@ -156,53 +215,41 @@ async def process_events_csv_document(update: Update, context: ContextTypes.DEFA
         temp_path = os.path.join(data_folder, update.message.document.file_name)
         await file.download_to_drive(custom_path=temp_path)
         count = 0
-        await update.message.reply_markdown("*📥 Обрабатываем CSV файл с мероприятиями...*")
+        await update.message.reply_markdown("*📥 Обрабатываем CSV файл с проектами...*")
+
+        from database.models.project import ProjectModel
+        project_db = ProjectModel()
+
         with open(temp_path, newline="", encoding="utf-8") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                name = row.get("Название", "")
-                event_date = row.get("Дата", "")
-                start_time = row.get("Время", "")
-                city = row.get("Локация", "")
-                creator = row.get("Организатор", "")
-                description = row.get("Описание", "")
-                participation_points = 5
-                tags = row.get("Теги", "")
-                code = row.get("Код", "")
-                owner = "admin"
-
-                # Добавляем мероприятие в базу данных
+                name = row.get("Проект", "").strip()
+                description = row.get("Описание", "").strip()
+                responsible = row.get("Ответственный", "").strip()
+                if not name:
+                    continue
                 try:
-                    event_db.add_event(
-                        name=name,
-                        event_date=event_date, 
-                        start_time=start_time, 
-                        city=city,
-                        creator=creator,
-                        description=description,
-                        participation_points=int(participation_points),
-                        tags=tags,
-                        code=code,
-                        owner=owner
-                    )
+                    project_db.add_project(name, description, responsible)
                     count += 1
-                    await update.message.reply_markdown(f"*✅ Мероприятие {name} добавлено в базу данных.*")
+                    await update.message.reply_markdown(f"*✅ Проект {name} добавлен в базу данных.*")
                 except Exception as e:
-                    logger.error(f"Ошибка при добавлении мероприятия: {e}")
-                    
+                    if "UNIQUE constraint failed" in str(e):
+                        await update.message.reply_markdown(f"*⚠️ Проект {name} уже существует.*")
+                    else:
+                        logger.error(f"Ошибка при добавлении проекта: {e}")
         os.remove(temp_path)
-        await update.message.reply_markdown(f"*✅ CSV файл обработан успешно.* Добавлено мероприятий: _{count}_.")
+        await update.message.reply_markdown(f"*✅ CSV файл обработан успешно.* Добавлено проектов: _{count}_.")
     except Exception as e:
-        logger.error(f"Ошибка при обработке CSV файла с мероприятиями: {e}")
-        await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с мероприятиями.*")
-    return MAIN_MENU
+        logger.error(f"Ошибка при обработке CSV файла с проектами: {e}")
+        await update.message.reply_markdown("*🚫 Произошла ошибка при обработке CSV файла с проектами.*")
+    return ADMIN_MENU
 
 @role_required("admin", "moderator")
 async def admin_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Меню администратора:", reply_markup=get_admin_menu_keyboard())
     return ADMIN_MENU
 
-async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text
     if text == "Установить админа":
         await update.message.reply_text("Введите ID пользователя для установки в роли администратора:")
@@ -222,6 +269,9 @@ async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFA
     elif text == "Загрузить мероприятия из CSV":
         await update.message.reply_text("Отправьте CSV файл с мероприятиями:")
         return EVENT_CSV_UPLOAD
+    elif text == "Загрузить проекты из CSV":
+        await update.message.reply_text("Отправьте CSV файл с проектами:")
+        return PROJECTS_CSV_UPLOAD
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard
         user_record = user_db.get_user(update.effective_user.id)
@@ -234,6 +284,7 @@ async def handle_admin_menu_selection(update: Update, context: ContextTypes.DEFA
     else:
         await update.message.reply_text("Неизвестная команда. Выберите действие из меню.")
         return ADMIN_MENU
+
 
 async def handle_admin_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.text
@@ -451,34 +502,65 @@ async def moderator_handle_event_creator(update: Update, context: ContextTypes.D
     text = update.message.text.strip()
     if text == "❌ Отмена":
         return await handle_event_creation_cancel(update, context)
-
     context.user_data["event_creator"] = text
-    await update.message.reply_text("📝 Введите описание мероприятия:", reply_markup=get_cancel_keyboard())
-    return MOD_EVENT_DESCRIPTION
+    await update.message.reply_text(
+        "💰 Количество баллов за участие: 5",
+        reply_markup=get_cancel_keyboard()
+    )
+    return MOD_EVENT_POINTS
 
 async def moderator_handle_event_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
     if text == "❌ Отмена":
         return await handle_event_creation_cancel(update, context)
-
     context.user_data["event_description"] = text
-    context.user_data["event_participation_points"] = 5
-
     await update.message.reply_text(
-        "🏷️ Выберите теги мероприятия:",
+        "Введите название проекта для мероприятия (если проект не нужен, введите '❌ Отмена' или оставьте поле пустым):",
+        reply_markup=get_cancel_keyboard()
+    )
+    return MOD_EVENT_PROJECT
+
+async def moderator_handle_event_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    project_name = update.message.text.strip()
+    if project_name in ["❌ Отмена", "Отмена", ""]:
+        context.user_data["project_id"] = None
+    else:
+        project_db = ProjectModel()
+        project = project_db.get_project_by_name(project_name)
+        if project:
+            context.user_data["project_id"] = project["id"]
+        else:
+            await update.message.reply_text(
+                "Проект с таким названием не найден. Если хотите создать мероприятие без проекта, нажмите '❌ Отмена'. Введите корректное название проекта или '❌ Отмена':",
+                reply_markup=get_cancel_keyboard()
+            )
+            return MOD_EVENT_PROJECT
+    await update.message.reply_text(
+        "Введите теги мероприятия:",
         reply_markup=get_tag_selection_keyboard_with_cancel()
     )
-    context.user_data["selected_tags"] = []
     return MOD_EVENT_TAGS
 
 async def moderator_handle_event_participation_points(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    context.user_data["event_participation_points"] = 5
+    text = update.message.text.strip()
+    if text:
+        context.user_data["event_participation_points"] = 5
+    else:
+        try:
+            points = int(text)
+            context.user_data["event_participation_points"] = points
+        except ValueError:
+            await update.message.reply_text(
+                "❌ Пожалуйста, введите числовое значение для баллов, или '❌ Отмена' для значения по умолчанию.",
+                reply_markup=get_cancel_keyboard()
+            )
+            return MOD_EVENT_POINTS
     await update.message.reply_text(
-        "🏷️ Выберите теги мероприятия:",
-        reply_markup=get_tag_selection_keyboard_with_cancel()
+        "📝 Введите описание мероприятия:",
+        reply_markup=get_cancel_keyboard()
     )
-    context.user_data["selected_tags"] = []
-    return MOD_EVENT_TAGS
+    return MOD_EVENT_DESCRIPTION
+
 
 async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     text = update.message.text.strip()
@@ -501,9 +583,8 @@ async def moderator_handle_event_tags(update: Update, context: ContextTypes.DEFA
             reply_markup=get_cancel_keyboard()
         )
         return MOD_EVENT_CODE
-        
-    # Обработка выбора/отмены выбора тега
-    selected_tag = text.split(" ✔️")[0]  # Убираем маркер выбора, если он есть
+
+    selected_tag = text.split(" ✔️")[0]
     if selected_tag in TAGS:
         selected_tags = context.user_data.get("selected_tags", [])
         if selected_tag in selected_tags:
@@ -528,7 +609,7 @@ async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFA
     text = update.message.text.strip()
     if text == "❌ Отмена":
         return await handle_event_creation_cancel(update, context)
-        
+
     context.user_data["event_code"] = text
     summary = (
         f"📋 *Проверьте данные мероприятия:*\n\n"
@@ -537,6 +618,7 @@ async def moderator_handle_event_code(update: Update, context: ContextTypes.DEFA
         f"⏰ *Время:* {context.user_data['event_time']}\n"
         f"📍 *Локация:* {context.user_data['event_city']}\n"
         f"👤 *Организатор:* {context.user_data['event_creator']}\n"
+        f"🚀 *Проект:* {context.user_data.get('event_project', 'Не указан')}\n"
         f"📝 *Описание:* {context.user_data['event_description']}\n"
         f"💰 *Ценность:* {context.user_data['event_participation_points']}\n"
         f"🏷️ *Теги:* {context.user_data['event_tags']}\n"
@@ -560,10 +642,8 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
         return MOD_EVENT_CONFIRM
         
     try:
-        # Создаем строку owner в формате "moderator:user_id"
         owner = f"moderator:{update.effective_user.id}"
-        
-        # Добавляем мероприятие в базу данных
+
         event_db.add_event(
             name=context.user_data["event_name"],
             event_date=context.user_data["event_date"],
@@ -574,7 +654,8 @@ async def moderator_confirm_event(update: Update, context: ContextTypes.DEFAULT_
             participation_points=context.user_data["event_participation_points"],
             tags=context.user_data["event_tags"],
             code=context.user_data["event_code"],
-            owner=owner
+            owner=owner,
+            project_id=context.user_data.get("project_id")  # Добавляем привязку к проекту
         )
         
         await update.message.reply_text(
@@ -1228,3 +1309,4 @@ async def handle_event_edit_value(update: Update, context: ContextTypes.DEFAULT_
         logger.error(f"Ошибка при обновлении мероприятия: {e}")
         await update.message.reply_text("Произошла ошибка при обновлении мероприятия.", reply_markup=get_mod_menu_keyboard())
     return MOD_MENU
+

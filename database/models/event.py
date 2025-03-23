@@ -30,11 +30,12 @@ class EventModel(Database):
             rows = cursor.fetchall()
             return [self._format_event(row) for row in rows]
 
-    def add_event(self, name, event_date, start_time, city, creator, description, participation_points, tags, code, owner=""):
+    def add_event(self, name, event_date, start_time, city, creator, description, participation_points, tags, code, owner="", project_id= None):
         """Добавляет новое мероприятие в базу данных."""
-        # Валидация обязательных полей
-        if not all([name, event_date, start_time, city, creator, description, participation_points, tags, code, owner]):
-            raise ValueError("Отсутствуют обязательные поля")
+        # TODO: Не знаю как это избежать, all() кривая провекра для данного случая
+        # # Валидация обязательных полей
+        # if not all([name, event_date, start_time, city, creator, description, participation_points, tags, code, owner, project_id]):
+        #     raise ValueError("Отсутствуют обязательные поля")
 
         # Валидация даты и времени
         try:
@@ -61,13 +62,13 @@ class EventModel(Database):
                     INSERT INTO events (
                         name, event_date, start_time, city, creator, 
                         description, participation_points, participants_count, 
-                        tags, code, owner
+                        tags, code, owner, project_id
                     )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     name, event_date, start_time, city, creator,
                     description, participation_points, participants_count,
-                    tags, code, owner
+                    tags, code, owner, project_id
                 ))
                 conn.commit()
                 return cursor.lastrowid

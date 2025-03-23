@@ -19,7 +19,8 @@ from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, EVENT_CSV_IMPORT,
                         MOD_EVENT_DELETE, PASSWORD_CHECK, CSV_EXPORT_MENU, EVENT_REPORT_CREATE,
                         EVENT_REPORT_PARTICIPANTS, EVENT_REPORT_PHOTOS, EVENT_REPORT_SUMMARY,
                         EVENT_REPORT_FEEDBACK, PROFILE_EMPLOYEE_NUMBER_UPDATE, MOD_EVENT_EDIT_SELECT,
-                        MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, LEADERBOARD_REGION_SELECT, EVENT_TAG_SELECT)
+                        MOD_EVENT_EDIT_FIELD, MOD_EVENT_EDIT_VALUE, LEADERBOARD_REGION_SELECT, EVENT_TAG_SELECT,
+                        MOD_EVENT_PROJECT, PROJECTS_CSV_UPLOAD)
 
 from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_csv, handle_moderator_id, handle_delete_user_id, handle_find_user_id, handle_find_user_name, moderator_handle_event_creator, moderator_handle_event_tags, set_admin, set_moderator, delete_user, find_user_id,
                                 find_users_name,
@@ -31,7 +32,8 @@ from bot.handlers.admin import (admin_command, handle_admin_id, handle_events_cs
                                 handle_event_delete, handle_csv_export_menu_selection, handle_event_report_create,
                                 create_event_report, handle_report_participants, handle_report_photos,
                                 handle_report_summary, handle_report_feedback, view_event_report, handle_event_edit_value,
-                                handle_event_edit_field, handle_event_edit_select)
+                                handle_event_edit_field, handle_event_edit_select, moderator_handle_event_project,
+                                process_projects_csv_document)
 
 from bot.handlers.user import (handle_event_details, handle_main_menu, handle_ai_chat, handle_volunteer_home, handle_registration,
                                handle_registration_tag_selection, handle_profile_menu, handle_contact_update,
@@ -162,14 +164,8 @@ class VolunteerBot:
                 MOD_EVENT_CREATOR: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_creator)
                 ],
-                MOD_EVENT_DESCRIPTION: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)
-                ],
                 MOD_EVENT_POINTS: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_participation_points)
-                ],
-                MOD_EVENT_TAGS: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_tags)
                 ],
                 MOD_EVENT_CODE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_code)
@@ -201,9 +197,6 @@ class VolunteerBot:
                 EVENT_REPORT_FEEDBACK: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_report_feedback)
                 ],
-                PROFILE_EMPLOYEE_NUMBER: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number)
-                ],
                 PROFILE_EMPLOYEE_NUMBER_UPDATE: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_employee_number_update)
                 ],
@@ -221,6 +214,18 @@ class VolunteerBot:
                 ],
                 EVENT_TAG_SELECT: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, handle_event_tag_selection)
+                ],
+                MOD_EVENT_DESCRIPTION: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_description)
+                ],
+                MOD_EVENT_PROJECT: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_project)
+                ],
+                MOD_EVENT_TAGS: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, moderator_handle_event_tags)
+                ],
+                PROJECTS_CSV_UPLOAD: [
+                    MessageHandler(filters.Document.FileExtension("csv"), process_projects_csv_document)
                 ],
             },
             fallbacks=[CommandHandler("cancel", cancel)]

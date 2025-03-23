@@ -61,6 +61,15 @@ class Database:
                 ''')
 
                 cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS projects (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL UNIQUE,
+                        description TEXT,
+                        responsible TEXT
+                    )
+                ''')
+
+                cursor.execute('''
                     CREATE TABLE IF NOT EXISTS events (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         name TEXT NOT NULL,
@@ -73,7 +82,9 @@ class Database:
                         participants_count INTEGER DEFAULT 0 NOT NULL,
                         tags TEXT NOT NULL,
                         code TEXT NOT NULL,
-                        owner TEXT NOT NULL
+                        owner TEXT NOT NULL,
+                        project_id INTEGER DEFAULT NULL,
+                        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
                     )
                 ''')
 
