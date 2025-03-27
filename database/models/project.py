@@ -1,3 +1,5 @@
+import sqlite3
+
 from database.connection import get_db_connection
 
 class ProjectModel:
@@ -23,3 +25,12 @@ class ProjectModel:
         cursor.execute("INSERT INTO projects (name, description, responsible) VALUES (?, ?, ?)", (name, description, responsible))
         conn.commit()
         conn.close()
+
+    def get_all_projects(self):
+        conn = get_db_connection()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM projects")
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]

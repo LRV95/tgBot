@@ -22,7 +22,7 @@ def get_volunteer_dashboard_keyboard():
     return ReplyKeyboardMarkup([
         ["Профиль", "Текущие мероприятия"],
         ["Бонусы", "Ввести код", "Лидерборд"],
-        ["Информация", "Выход"]
+        ["Информация", "Все проекты", "Выход"]
     ], resize_keyboard=True)
 
 def get_leaderboard_region_keyboard():

@@ -1,8 +1,10 @@
+MAX_MESSAGE_LENGTH = 4096
+
 import logging
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ContextTypes
 from bot.keyboards.common import get_cancel_keyboard
-from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU, 
+from bot.states import (MAIN_MENU, AI_CHAT, VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU,
                     PROFILE_UPDATE_NAME, PROFILE_TAG_SELECT, REGISTRATION_TAG_SELECT,
                     REGISTRATION_CITY_SELECT, PROFILE_CITY_SELECT, EVENT_DETAILS, MOD_MENU,
                     EVENT_CODE_REDEEM, PROFILE_EMPLOYEE_NUMBER, PROFILE_EMPLOYEE_NUMBER_UPDATE,
@@ -22,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 user_db = UserModel()
 event_db = EventModel()
+
 
 
 async def handle_event_tag_selection(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -303,6 +306,8 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=get_leaderboard_region_keyboard()
         )
         return LEADERBOARD_REGION_SELECT
+    elif text == "Все проекты":
+        return await list_all_projects_user(update, context)
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
         return VOLUNTEER_DASHBOARD
@@ -1180,3 +1185,30 @@ async def handle_employee_number_update(update: Update, context: ContextTypes.DE
     user_db.update_user_employee_number(user_id=user_id, employee_number=employee_number)
     await update.message.reply_text("Ваш табельный номер успешно изменен.", reply_markup=get_profile_menu_keyboard())
     return PROFILE_MENU
+
+
+async def list_all_projects_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Выводит список всех проектов для пользователя."""
+    project_db = ProjectModel()
+    projects = project_db.get_all_projects()  # Метод должен возвращать список проектов как список словарей
+    if not projects:
+        await update.message.reply_text("Нет проектов.", reply_markup=get_volunteer_dashboard_keyboard())
+        return VOLUNTEER_DASHBOARD
+
+    message = "📋 Список проектов:\n\n"
+    for project in projects:
+        message += (
+            f"ID: {project.get('id')}\n"
+            f"Название: {project.get('name')}\n"
+            f"Описание: {project.get('description', 'Нет описания')}\n"
+            f"Ответственный: {project.get('responsible', 'Не указан')}\n\n"
+        )
+
+    # Если сообщение слишком длинное, разбиваем его на части
+    if len(message) > MAX_MESSAGE_LENGTH:
+        for i in range(0, len(message), MAX_MESSAGE_LENGTH):
+            await update.message.reply_text(message[i:i + MAX_MESSAGE_LENGTH])
+    else:
+        await update.message.reply_text(message, reply_markup=get_volunteer_dashboard_keyboard())
+
+    return VOLUNTEER_DASHBOARD

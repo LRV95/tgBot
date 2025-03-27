@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ConversationHandler, filters, CallbackQueryHandler, CallbackContext
 from config import TOKEN, ADMIN_ID
 from bot.handlers.common import start, cancel, check_password, handle_successful_auth
+from database.core import Database
 
 from bot.states import (ADMIN_MENU, MAIN_MENU, MOD_EVENT_TAGS, AI_CHAT,
                         VOLUNTEER_DASHBOARD, GUEST_DASHBOARD, PROFILE_MENU,
@@ -74,6 +75,10 @@ class VolunteerBot:
         )
         
         try:
+            # Инициализируем базу данных
+            self.db = Database()
+            self.logger.info("Database initialized successfully")
+            
             self.application = Application.builder().token(self.token).build()
             self.setup_handlers()
         except Exception as e:

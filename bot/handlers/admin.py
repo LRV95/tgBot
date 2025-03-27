@@ -1372,7 +1372,7 @@ async def handle_project_export_input(update: Update, context: ContextTypes.DEFA
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for event in events:
-            row = dict(event)  # Преобразуем sqlite3.Row в словарь
+            row = dict(event)
             writer.writerow({
                 "id": row.get("id", ""),
                 "name": row.get("name", ""),

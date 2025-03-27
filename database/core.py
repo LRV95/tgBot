@@ -102,4 +102,109 @@ class Database:
                 conn.commit()
         except sqlite3.Error as e:
             logger.error(f"Ошибка при создании таблиц: {e}")
-            raise DatabaseError(f"Ошибка при создании таблиц: {e}") 
+            raise DatabaseError(f"Ошибка при создании таблиц: {e}")
+
+    def get_all_events(self):
+        """
+        Получает все мероприятия из базы данных
+        
+        Returns:
+            Список мероприятий
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT id, name, event_date as date, start_time as time,
+                           city, description, tags
+                    FROM events
+                """)
+                return cursor.fetchall()
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при получении мероприятий: {e}")
+            raise DatabaseError(f"Ошибка при получении мероприятий: {e}")
+
+    def add_event(self, event_data: dict) -> int:
+        """
+        Добавляет новое мероприятие
+        
+        Args:
+            event_data: Данные мероприятия
+            
+        Returns:
+            ID созданного мероприятия
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO events (
+                        name, event_date, start_time, city, description,
+                        tags, creator, code, owner
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    event_data['name'],
+                    event_data['date'],
+                    event_data['time'],
+                    event_data['city'],
+                    event_data['description'],
+                    event_data['tags'],
+                    event_data.get('creator', 'system'),
+                    event_data.get('code', ''),
+                    event_data.get('owner', 'system')
+                ))
+                conn.commit()
+                return cursor.lastrowid
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при добавлении мероприятия: {e}")
+            raise DatabaseError(f"Ошибка при добавлении мероприятия: {e}")
+
+    def update_event(self, event_id: int, event_data: dict):
+        """
+        Обновляет существующее мероприятие
+        
+        Args:
+            event_id: ID мероприятия
+            event_data: Новые данные мероприятия
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE events SET
+                        name = ?,
+                        event_date = ?,
+                        start_time = ?,
+                        city = ?,
+                        description = ?,
+                        tags = ?
+                    WHERE id = ?
+                """, (
+                    event_data['name'],
+                    event_data['date'],
+                    event_data['time'],
+                    event_data['city'],
+                    event_data['description'],
+                    event_data['tags'],
+                    event_id
+                ))
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при обновлении мероприятия: {e}")
+            raise DatabaseError(f"Ошибка при обновлении мероприятия: {e}")
+
+    def delete_event(self, event_id: int):
+        """
+        Удаляет мероприятие
+        
+        Args:
+            event_id: ID мероприятия
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("DELETE FROM events WHERE id = ?", (event_id,))
+                conn.commit()
+        except sqlite3.Error as e:
+            logger.error(f"Ошибка при удалении мероприятия: {e}")
+            raise DatabaseError(f"Ошибка при удалении мероприятия: {e}") 

@@ -1,118 +1,163 @@
+# services/ai/random_events.py
 import random
 import logging
+from typing import List, Dict, Any
+import json
+import re
+
 from .base import AIAgent
 from database.core import Database
 from .gigachat_llm import GigaChatLLM
+from .memory_store import MemoryStore
 from bot.constants import TAGS, CITIES
+from .shared_embeddings import SharedEmbeddings
 
 logger = logging.getLogger(__name__)
 
+
 class RandomEventsAgent(AIAgent):
+    """
+    Агент для предоставления случайных мероприятий
+    с использованием семантического поиска.
+    """
+
     def __init__(self):
+        super().__init__(name="RandomEventsAgent", autonomy_level=2)
         self.db = Database()
-        self.llm = GigaChatLLM()
+        self.llm = GigaChatLLM(temperature=0.7)
+        self.memory_store = MemoryStore()
+        self.embeddings = SharedEmbeddings()
 
-    def process_query(self, query: str, user_id: int, **kwargs) -> str:
-        prompt_filters = (
-            "Извлеки из следующего запроса указанные теги и города. "
-            "Известные теги: " + ", ".join(TAGS) + ". "
-            "Известные города: " + ", ".join(CITIES) + ".\n\n"
-            "Запрос: " + query + "\n\n"
-            "Ответ должен быть в формате:\n"
-            "Теги: [тег1, тег2, ...]\n"
-            "Города: [город1, город2, ...]"
+        # Регистрация инструментов
+        self.register_tool(
+            "semantic_event_search",
+            self._semantic_event_search,
+            "Поиск мероприятий с использованием embeddings"
         )
+
+        self.register_tool(
+            "generate_event_description",
+            self._generate_event_description,
+            "Генерация описания мероприятия"
+        )
+
+    def _semantic_event_search(self, query: str, k: int = 10) -> List[Dict[str, Any]]:
+        """
+        Поиск релевантных мероприятий с использованием embeddings
+        
+        Args:
+            query: Текст запроса
+            k: Количество результатов
+            
+        Returns:
+            Список релевантных мероприятий
+        """
         try:
-            filters_response = self.llm.generate(prompt_filters).strip()
-            logger.info(f"Извлечены фильтры: {filters_response}")
+            results = self.embeddings.search_events(query, k)
+            return results
         except Exception as e:
-            logger.error(f"Ошибка при извлечении фильтров: {e}")
-            filters_response = "Теги: []\nГорода: []"
+            logger.error(f"Error in semantic event search: {e}")
+            return []
 
-        extracted_tags = []
-        extracted_cities = []
+    def _generate_event_description(self, event: Dict[str, Any]) -> str:
+        """
+        Генерация описания мероприятия
+        
+        Args:
+            event: Информация о мероприятии
+            
+        Returns:
+            Сгенерированное описание
+        """
         try:
-            for line in filters_response.splitlines():
-                if line.lower().startswith("теги:"):
-                    tags_part = line.split(":", 1)[1].strip()
-                    tags_part = tags_part.strip(" []")
-                    if tags_part:
-                        extracted_tags = [t.strip() for t in tags_part.split(",") if t.strip()]
-                elif line.lower().startswith("города:"):
-                    cities_part = line.split(":", 1)[1].strip()
-                    cities_part = cities_part.strip(" []")
-                    if cities_part:
-                        extracted_cities = [c.strip() for c in cities_part.split(",") if c.strip()]
+            prompt = f"""
+            Создай интересное и привлекательное описание для следующего мероприятия:
+            
+            Название: {event['name']}
+            Описание: {event['description']}
+            Дата: {event['date']}
+            Время: {event['time']}
+            Город: {event['city']}
+            Теги: {event['tags']}
+            
+            Пожалуйста, сделай описание ярким и информативным, подчеркивая уникальные особенности мероприятия.
+            """
+            
+            response = self.llm.generate(prompt)
+            return response
+            
         except Exception as e:
-            logger.error(f"Ошибка при парсинге фильтров: {e}")
+            logger.error(f"Error generating event description: {e}")
+            return event['description']
 
-        logger.info(f"Полученные теги: {extracted_tags}, города: {extracted_cities}")
-
-        base_query = "SELECT name, event_date, start_time, city, description FROM events"
-        conditions = []
-        params = []
-
-        if extracted_tags:
-            tag_conditions = []
-            for tag in extracted_tags:
-                tag_conditions.append("LOWER(tags) LIKE ?")
-                params.append(f"%{tag.lower()}%")
-            conditions.append("(" + " OR ".join(tag_conditions) + ")")
-
-        if extracted_cities:
-            city_conditions = []
-            for city in extracted_cities:
-                city_conditions.append("LOWER(city) = ?")
-                params.append(city.lower())
-            conditions.append("(" + " OR ".join(city_conditions) + ")")
-
-        if conditions:
-            base_query += " WHERE " + " AND ".join(conditions)
-
-        base_query += " ORDER BY event_date, start_time"
-
-        try:
-            with self.db.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute(base_query, tuple(params))
-                events = cursor.fetchall()
-        except Exception as e:
-            logger.error(f"Ошибка при выполнении запроса к БД: {e}")
-            events = []
-
+    def reason(self, query: str, context: Dict = None) -> List[str]:
+        """
+        Построение цепочки рассуждений для предоставления случайных мероприятий
+        
+        Args:
+            query: Запрос пользователя
+            context: Контекстная информация
+            
+        Returns:
+            Список шагов рассуждения
+        """
+        reasoning_steps = []
+        
+        # 1. Анализ запроса
+        reasoning_steps.append(f"Анализирую запрос пользователя: {query}")
+        
+        # 2. Поиск релевантных мероприятий
+        reasoning_steps.append("Выполняю семантический поиск мероприятий")
+        events = self._semantic_event_search(query)
+        
         if not events:
-            logger.info("Подходящих мероприятий по фильтрам не найдено, выбираем случайные.")
-            with self.db.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT name, event_date, start_time, city, description FROM events")
-                all_events = cursor.fetchall()
-            if not all_events:
-                return "На данный момент нет доступных мероприятий."
-            events = random.sample(all_events, min(4, len(all_events)))
-        else:
-            if len(events) > 4:
-                events = random.sample(events, 4)
+            reasoning_steps.append("Не найдено релевантных мероприятий")
+            return reasoning_steps
+            
+        # 3. Анализ результатов
+        reasoning_steps.append(f"Найдено {len(events)} мероприятий")
+        
+        # 4. Выбор случайных мероприятий
+        reasoning_steps.append("Выбираю случайные мероприятия из найденных")
+        
+        return reasoning_steps
 
-        descriptions = []
-        for event in events:
-            name, event_date, start_time, city, description = event
-            prompt = (
-                f"Опиши мероприятие, основываясь на следующей информации:\n"
-                f"Название: {name}\n"
-                f"Дата: {event_date}\n"
-                f"Время: {start_time}\n"
-                f"Город: {city}\n"
-                f"Описание: {description}\n\n"
-                "Сформируй интересное, подробное и завершённое описание этого мероприятия. "
-                "Пожалуйста, не обрывай ответ на полуслове, а дай полное описание, включая все важные детали. "
-                "При этом используй эмодзи и markdown."
-            )
-            try:
-                event_desc = self.llm.generate(prompt)
-            except Exception as e:
-                logger.error(f"Ошибка при генерации описания для мероприятия '{name}': {e}")
-                event_desc = f"Описание для мероприятия '{name}' не удалось сгенерировать."
-            descriptions.append(event_desc)
-
-        final_output = "\n\n".join(descriptions)
-        return final_output
+    def process_query(self, query: str, **kwargs) -> str:
+        """
+        Обработка запроса пользователя
+        
+        Args:
+            query: Запрос пользователя
+            **kwargs: Дополнительные параметры
+            
+        Returns:
+            Ответ со случайными мероприятиями
+        """
+        try:
+            # 1. Поиск релевантных мероприятий
+            events = self._semantic_event_search(query, k=10)
+            
+            if not events:
+                return "Извините, я не смог найти подходящие мероприятия. Попробуйте переформулировать запрос."
+            
+            # 2. Выбираем случайные мероприятия
+            num_events = min(3, len(events))
+            selected_events = random.sample(events, num_events)
+            
+            # 3. Генерируем ответ
+            response = "Вот несколько интересных мероприятий, которые могут вас заинтересовать:\n\n"
+            
+            for event in selected_events:
+                description = self._generate_event_description(event)
+                response += f"✨ **{event['name']}**\n"
+                response += f"📅 Дата: {event['date']}\n"
+                response += f"🕒 Время: {event['time']}\n"
+                response += f"📍 Город: {event['city']}\n"
+                response += f"🏷 Теги: {event['tags']}\n"
+                response += f"📝 {description}\n\n"
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error processing random events query: {e}")
+            return "Извините, произошла ошибка при поиске мероприятий."
