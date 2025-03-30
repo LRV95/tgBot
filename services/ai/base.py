@@ -62,26 +62,6 @@ class AIAgent(ABC):
         self.current_reasoning = reasoning_steps
         return reasoning_steps
 
-    def can_perform_autonomously(self, action: str, criticality: int = 1) -> bool:
-        """
-        Проверяет, может ли агент выполнить действие автономно
-
-        Args:
-            action: Действие для проверки
-            criticality: Критичность действия (0-3, где 3 - самое критичное)
-
-        Returns:
-            bool: True, если действие может быть выполнено автономно
-        """
-        # Если уровень автономности выше критичности, действие выполняется автономно
-        if self.autonomy_level >= criticality:
-            logger.info(f"Агент {self.name} автономно выполняет действие: {action}")
-            return True
-
-        # Иначе требуется подтверждение
-        logger.info(f"Агент {self.name} требует подтверждения для действия: {action}")
-        return False
-
     def add_to_memory(self, key: str, value: Any, memory_type: str = "short_term") -> None:
         """
         Добавляет информацию в память агента
@@ -161,6 +141,7 @@ class AIAgent(ABC):
                     "Пожалуйста, попробуйте сформулировать его иначе или задайте другой вопрос.")
         else:
             return error_message
+
     def register_tool(self, tool_name: str, tool_function: callable, description: str) -> None:
         """
         Регистрирует новый инструмент для использования агентом
@@ -199,112 +180,26 @@ class AIAgent(ABC):
             "timestamp": time.time()
         })
 
-        logger.info(f"Агент {self.name} использует инструмент: {tool_name}")
-        result = self.available_tools[tool_name]["function"](*args, **kwargs)
+        logger.debug(f"Агент {self.name} {action}")
+        
+        return self.available_tools[tool_name]["function"](*args, **kwargs)
 
-        # Добавляем результат в историю действий для рефлексии
-        self.action_history[-1]["result"] = result
-
-        return result
-
-    def reflect(self, action_index: int = None) -> Dict:
+    def can_perform_autonomously(self, action: str, criticality: int = 1) -> bool:
         """
-        Выполняет рефлексию над действиями
+        Проверяет, может ли агент выполнить действие автономно
 
         Args:
-            action_index: Индекс конкретного действия для рефлексии
-                         (None для рефлексии над всей цепочкой)
+            action: Действие для проверки
+            criticality: Критичность действия (0-3, где 3 - самое критичное)
 
         Returns:
-            Dict: Результат рефлексии
+            bool: True, если действие может быть выполнено автономно
         """
-        if action_index is not None and action_index < len(self.action_history):
-            # Рефлексия над конкретным действием
-            action = self.action_history[action_index]
-            result = {
-                "action": action["action"],
-                "success": "result" in action,
-                "evaluation": "Действие выполнено успешно" if "result" in action else "Действие не выполнено"
-            }
-        else:
-            # Рефлексия над всей цепочкой действий
-            successful_actions = sum(1 for action in self.action_history if "result" in action)
-            result = {
-                "total_actions": len(self.action_history),
-                "successful_actions": successful_actions,
-                "success_rate": successful_actions / max(1, len(self.action_history)),
-                "evaluation": "Цепочка действий выполнена успешно"
-                if successful_actions == len(self.action_history)
-                else "Не все действия в цепочке выполнены успешно"
-            }
-
-        logger.info(f"Агент {self.name} выполнил рефлексию: {result}")
-        return result
-
-    def adapt_role(self, new_role: str) -> None:
-        """
-        Адаптирует роль агента в зависимости от контекста
-
-        Args:
-            new_role: Новая роль агента
-        """
-        logger.info(f"Агент {self.name} меняет роль на {new_role}")
-        self.name = f"{new_role}Agent"
-        # Дополнительная логика адаптации роли может быть добавлена здесь
-
-    def create_dynamic_tool(self, tool_code: str, tool_name: str, description: str) -> bool:
-        """
-        Создает новый инструмент на основе кода
-
-        Args:
-            tool_code: Код инструмента
-            tool_name: Название инструмента
-            description: Описание инструмента
-
-        Returns:
-            bool: True в случае успеха, False в случае ошибки
-        """
-        try:
-            # ВНИМАНИЕ: exec потенциально небезопасен, используйте с осторожностью
-            # В реальном приложении следует использовать более безопасные механизмы
-            namespace = {}
-            exec(tool_code, namespace)
-
-            if "tool_function" not in namespace:
-                logger.error(f"Ошибка при создании инструмента {tool_name}: функция tool_function не найдена")
-                return False
-
-            self.register_tool(tool_name, namespace["tool_function"], description)
-            logger.info(f"Успешно зарегистрирован инструмент: {tool_name}")
+        # Если уровень автономности выше критичности, действие выполняется автономно
+        if self.autonomy_level >= criticality:
+            logger.info(f"Агент {self.name} автономно выполняет действие: {action}")
             return True
-        except Exception as e:
-            logger.error(f"Ошибка при создании инструмента {tool_name}: {e}")
-            return False
 
-    def save_state(self) -> Dict:
-        """
-        Сохраняет состояние агента
-
-        Returns:
-            Dict: Состояние агента
-        """
-        return {
-            "name": self.name,
-            "autonomy_level": self.autonomy_level,
-            "memory": self.memory,
-            "action_history": self.action_history,
-            "current_reasoning": self.current_reasoning
-        }
-
-    def load_state(self, state: Dict) -> None:
-        """
-        Загружает состояние агента
-
-        Args:
-            state: Состояние агента
-        """
-        self.name = state.get("name", self.name)
-        self.autonomy_level = state.get("autonomy_level", self.autonomy_level)
-        self.memory = state.get("memory", self.memory)
-        self.action_history = state.get("action_history", self.action_history)
-        self.current_reasoning = state.get("current_reasoning", self.current_reasoning)
+        # Иначе требуется подтверждение
+        logger.info(f"Агент {self.name} требует подтверждения для действия: {action}")
+        return False

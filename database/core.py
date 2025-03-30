@@ -115,8 +115,9 @@ class Database:
             with self.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT id, name, event_date as date, start_time as time,
-                           city, description, tags
+                    SELECT id, name, description, event_date, start_time,
+                           city, creator, participation_points, participants_count,
+                           tags, code, owner
                     FROM events
                 """)
                 return cursor.fetchall()

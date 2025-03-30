@@ -85,6 +85,35 @@ class VolunteerBot:
             self.logger.critical(f"Критическая ошибка при инициализации бота: {e}")
             sys.exit(1)
 
+    def shutdown(self, signum=None):
+        """
+        Корректное завершение работы бота
+        
+        Args:
+            signum: Номер сигнала, если завершение вызвано сигналом
+        """
+        try:
+            if signum:
+                self.logger.info(f"Получен сигнал {signum}, завершаю работу бота...")
+            else:
+                self.logger.info("Завершаю работу бота...")
+                
+            # Останавливаем приложение
+            if hasattr(self, 'application'):
+                self.application.stop()
+                self.application.shutdown()
+                
+            # Закрываем соединение с базой данных
+            if hasattr(self, 'db'):
+                self.db.close()
+                
+            self.logger.info("Бот успешно завершил работу")
+            sys.exit(0)
+            
+        except Exception as e:
+            self.logger.critical(f"Ошибка при завершении работы бота: {e}")
+            sys.exit(1)
+
     def setup_handlers(self):
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler("start", start)],

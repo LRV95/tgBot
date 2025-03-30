@@ -421,3 +421,50 @@ class MemoryStore:
         except Exception as e:
             logger.error(f"Ошибка при получении цепочек рассуждений: {e}")
             return []
+
+    def get_conversation(self, user_id: int) -> List[Dict]:
+        """
+        Получает историю разговора с пользователем в формате, совместимом с UnifiedRAGAgent
+        
+        Args:
+            user_id: ID пользователя
+            
+        Returns:
+            List[Dict]: История сообщений в формате [{role, content}, ...]
+        """
+        try:
+            return self.get_conversation_history(user_id, limit=20)
+        except Exception as e:
+            logger.error(f"Ошибка при получении истории разговора: {e}")
+            return []
+            
+    def save_conversation(self, user_id: int, conversation: List[Dict]) -> bool:
+        """
+        Сохраняет историю разговора с пользователем
+        
+        Args:
+            user_id: ID пользователя
+            conversation: Список сообщений в формате [{role, content}, ...]
+            
+        Returns:
+            bool: True в случае успеха, False в случае ошибки
+        """
+        try:
+            # Очищаем старую историю
+            with self._connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "DELETE FROM conversation_history WHERE user_id = ?",
+                    (user_id,)
+                )
+                conn.commit()
+                
+            # Сохраняем новую историю
+            for message in conversation:
+                if "role" in message and "content" in message:
+                    self.store_conversation(user_id, message["content"], message["role"])
+                    
+            return True
+        except Exception as e:
+            logger.error(f"Ошибка при сохранении истории разговора: {e}")
+            return False

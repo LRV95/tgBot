@@ -16,7 +16,7 @@ from bot.keyboards import (get_ai_chat_keyboard, get_city_selection_keyboard, ge
                            get_leaderboard_region_keyboard, get_tag_filter_keyboard_for_region)
 
 from database.models.project import ProjectModel
-from services.ai import ContextRouterAgent
+from services.ai import UnifiedRAGAgent
 from database import UserModel, EventModel
 from bot.constants import CITIES, TAGS
 
@@ -219,8 +219,9 @@ async def handle_ai_chat(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     context.user_data["conversation_history"].append({"role": "user", "content": query})
 
-    router_agent = ContextRouterAgent()
-    response = router_agent.process_query(
+    # Используем новый унифицированный RAG-агент вместо маршрутизатора
+    rag_agent = UnifiedRAGAgent()
+    response = rag_agent.process_query(
         query,
         user_id=update.effective_user.id,
         conversation_history=context.user_data["conversation_history"]

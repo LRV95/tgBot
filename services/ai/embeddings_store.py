@@ -47,8 +47,8 @@ class EmbeddingsStore:
                 text = f"""
                 Название: {event['name']}
                 Описание: {event['description']}
-                Дата: {event['date']}
-                Время: {event['time']}
+                Дата: {event['event_date']}
+                Время: {event['start_time']}
                 Город: {event['city']}
                 Теги: {event['tags']}
                 """
@@ -57,8 +57,8 @@ class EmbeddingsStore:
                 metadata = {
                     "id": event['id'],
                     "name": event['name'],
-                    "date": event['date'],
-                    "time": event['time'],
+                    "date": event['event_date'],
+                    "time": event['start_time'],
                     "city": event['city'],
                     "tags": event['tags']
                 }
@@ -103,16 +103,65 @@ class EmbeddingsStore:
             events = []
             for doc, score in results:
                 metadata = doc.metadata
-                event = {
-                    "id": metadata["id"],
-                    "name": metadata["name"],
-                    "date": metadata["date"],
-                    "time": metadata["time"],
-                    "city": metadata["city"],
-                    "tags": metadata["tags"],
-                    "relevance_score": float(score)
-                }
-                events.append(event)
+                event_id = metadata["id"]
+                
+                # Получаем полные данные о событии из базы данных
+                try:
+                    with self.db.connect() as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            SELECT id, name, description, event_date, start_time,
+                                   city, creator, participation_points, participants_count,
+                                   tags, code, owner
+                            FROM events
+                            WHERE id = ?
+                        """, (event_id,))
+                        db_event = cursor.fetchone()
+                        
+                        if db_event:
+                            event = {
+                                "id": db_event['id'],
+                                "name": db_event['name'],
+                                "date": db_event['event_date'],
+                                "time": db_event['start_time'],
+                                "city": db_event['city'],
+                                "description": db_event['description'],
+                                "tags": db_event['tags'],
+                                "creator": db_event['creator'],
+                                "points": db_event['participation_points'],
+                                "code": db_event['code'],
+                                "owner": db_event['owner'],
+                                "relevance_score": float(score)
+                            }
+                            events.append(event)
+                        else:
+                            # Если событие не найдено в БД, используем данные из метаданных
+                            logger.warning(f"Event {event_id} found in embeddings but not in database")
+                            event = {
+                                "id": metadata["id"],
+                                "name": metadata["name"],
+                                "date": metadata["date"],
+                                "time": metadata["time"],
+                                "city": metadata["city"],
+                                "tags": metadata["tags"],
+                                "description": "Информация о мероприятии недоступна",
+                                "relevance_score": float(score)
+                            }
+                            events.append(event)
+                except Exception as db_error:
+                    logger.error(f"Error fetching event details from DB: {db_error}")
+                    # Используем данные из метаданных, если не удалось получить из БД
+                    event = {
+                        "id": metadata["id"],
+                        "name": metadata["name"],
+                        "date": metadata["date"],
+                        "time": metadata["time"],
+                        "city": metadata["city"],
+                        "tags": metadata["tags"],
+                        "description": "Информация о мероприятии недоступна",
+                        "relevance_score": float(score)
+                    }
+                    events.append(event)
             
             return events
             
@@ -135,8 +184,8 @@ class EmbeddingsStore:
             text = f"""
             Название: {event_data['name']}
             Описание: {event_data['description']}
-            Дата: {event_data['date']}
-            Время: {event_data['time']}
+            Дата: {event_data['event_date']}
+            Время: {event_data['start_time']}
             Город: {event_data['city']}
             Теги: {event_data['tags']}
             """
@@ -145,8 +194,8 @@ class EmbeddingsStore:
             metadata = {
                 "id": event_id,
                 "name": event_data["name"],
-                "date": event_data["date"],
-                "time": event_data["time"],
+                "date": event_data["event_date"],
+                "time": event_data["start_time"],
                 "city": event_data["city"],
                 "tags": event_data["tags"]
             }
@@ -182,8 +231,8 @@ class EmbeddingsStore:
             text = f"""
             Название: {event_data['name']}
             Описание: {event_data['description']}
-            Дата: {event_data['date']}
-            Время: {event_data['time']}
+            Дата: {event_data['event_date']}
+            Время: {event_data['start_time']}
             Город: {event_data['city']}
             Теги: {event_data['tags']}
             """
@@ -192,8 +241,8 @@ class EmbeddingsStore:
             metadata = {
                 "id": event_id,
                 "name": event_data["name"],
-                "date": event_data["date"],
-                "time": event_data["time"],
+                "date": event_data["event_date"],
+                "time": event_data["start_time"],
                 "city": event_data["city"],
                 "tags": event_data["tags"]
             }

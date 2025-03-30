@@ -20,7 +20,7 @@ def init_database():
         with db.connect() as conn:
             cursor = conn.cursor()
             
-            # Добавляем тестовые мероприятия
+            # Добавляем теговые мероприятия
             test_events = [
                 {
                     "name": "Волонтерская акция по уборке парка",
@@ -62,6 +62,9 @@ def init_database():
                     "owner": "admin"
                 }
             ]
+            
+            # Очищаем таблицу events
+            cursor.execute("DELETE FROM events")
             
             # Добавляем мероприятия в базу данных
             for event in test_events:
