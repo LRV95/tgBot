@@ -117,7 +117,7 @@ class Database:
                 cursor.execute("""
                     SELECT id, name, description, event_date, start_time,
                            city, creator, participation_points, participants_count,
-                           tags, code, owner
+                           tags, code, owner, project_id
                     FROM events
                 """)
                 return cursor.fetchall()
@@ -141,8 +141,8 @@ class Database:
                 cursor.execute("""
                     INSERT INTO events (
                         name, event_date, start_time, city, description,
-                        tags, creator, code, owner
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        tags, creator, code, owner, project_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     event_data['name'],
                     event_data['date'],
@@ -152,7 +152,8 @@ class Database:
                     event_data['tags'],
                     event_data.get('creator', 'system'),
                     event_data.get('code', ''),
-                    event_data.get('owner', 'system')
+                    event_data.get('owner', 'system'),
+                    event_data.get('project_id', None)
                 ))
                 conn.commit()
                 return cursor.lastrowid
