@@ -263,20 +263,7 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         # Вызываем функцию обработки мероприятий
         return await handle_events(update, context)
     elif text == "Информация":
-        # Отображаем информацию о боте
-        info_text = (
-            f"*ℹ️ Информация о боте*\n\n"
-            f"Этот бот помогает волонтерам находить и регистрироваться на мероприятия\\.\n\n"
-            f"*Основные функции:*\n"
-            f"• Просмотр списка мероприятий\n"
-            f"• Фильтрация мероприятий по тегам\n"
-            f"• Регистрация на мероприятия\n"
-            f"• Управление профилем\n"
-            f"• Накопление бонусных баллов\n\n"
-            f"Для возврата в главное меню нажмите кнопку \\\"Выход\\\"\\."
-        )
-        await update.message.reply_markdown_v2(info_text, reply_markup=get_volunteer_dashboard_keyboard())
-        return VOLUNTEER_DASHBOARD
+        return await show_info(update, context)
     elif text == "Бонусы":
         user = user_db.get_user(update.effective_user.id)
         if not user:
@@ -298,17 +285,13 @@ async def handle_volunteer_home(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text("Пожалуйста, введите код, который вам выдал модератор:", reply_markup=keyboard)
         return EVENT_CODE_REDEEM
     elif text == "Выход":
-        reply = f"Возвращаемся в главное меню!"
-        await update.message.reply_text(reply, reply_markup=get_main_menu_keyboard(role=user_role))
-        return MAIN_MENU
+        return await cancel(update, context)
     elif text == "Лидерборд":
         await update.message.reply_text(
             "Выберите регион для просмотра рейтинга волонтеров:",
             reply_markup=get_leaderboard_region_keyboard()
         )
         return LEADERBOARD_REGION_SELECT
-    elif text == "Все проекты":
-        return await list_all_projects_user(update, context)
     else:
         await update.message.reply_text("Команда не распознана. Выберите действие.")
         return VOLUNTEER_DASHBOARD

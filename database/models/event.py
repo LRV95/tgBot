@@ -129,19 +129,6 @@ class EventModel(Database):
                 return self._format_event(event)
             return None
 
-    def get_upcoming_events(self, limit=3):
-        """Получает список ближайших мероприятий."""
-        with self.connect() as conn:
-            cursor = conn.cursor()
-            # Сортируем по дате и времени (предполагается, что формат даты позволяет сортировку)
-            cursor.execute("""
-                SELECT * FROM events 
-                ORDER BY event_date, start_time 
-                LIMIT ?
-            """, (limit,))
-            rows = cursor.fetchall()
-            return [self._format_event(row) for row in rows]
-
     def get_events_by_tag(self, tag, limit=5, offset=0):
         """Возвращает список мероприятий по тегу с постраничной выборкой."""
         with self.connect() as conn:

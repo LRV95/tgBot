@@ -400,19 +400,29 @@ async def handle_moderation_menu_selection(update: Update, context: ContextTypes
         return CSV_EXPORT_MENU
 
     elif text == "Создать отчет":
-        await update.message.reply_text(
-            "Введите ID мероприятия для создания отчета:",
-            reply_markup=get_cancel_keyboard()
-        )
-        return EVENT_REPORT_CREATE
+        return await create_event_report(update, context)
 
     elif text == "Просмотреть отчет":
-        await update.message.reply_text(
-            "Введите ID мероприятия для просмотра отчета:",
-            reply_markup=get_cancel_keyboard()
-        )
-        context.user_data["action"] = "view_report"
-        return EVENT_REPORT_CREATE
+        return await view_event_report(update, context)
+
+    elif text == "Все проекты":
+        project_db = ProjectModel()
+        projects = project_db.get_all_projects()
+        if not projects:
+            await update.message.reply_text("Нет проектов.", reply_markup=get_mod_menu_keyboard())
+            return MOD_MENU
+
+        message = "📋 Список проектов:\n\n"
+        for project in projects:
+            message += f"• *{project['name']}*\n"
+            if project.get('description'):
+                message += f"  📝 {project['description']}\n"
+            if project.get('responsible'):
+                message += f"  👤 Ответственный: {project['responsible']}\n"
+            message += "\n"
+
+        await update.message.reply_markdown_v2(escape_markdown_v2(message), reply_markup=get_mod_menu_keyboard())
+        return MOD_MENU
 
     elif text == "Вернуться в главное меню":
         from bot.keyboards import get_main_menu_keyboard

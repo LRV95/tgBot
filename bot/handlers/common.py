@@ -81,14 +81,6 @@ async def handle_successful_auth(update: Update, context: ContextTypes.DEFAULT_T
                 f"Добро пожаловать, {user_record.get('first_name', 'Пользователь')}!",
                 reply_markup=get_main_menu_keyboard()
             )
-            # Показываем ближайшие мероприятия
-            upcoming_events = event_db.get_upcoming_events(limit=3)
-            if upcoming_events:
-                events_text = "📅 *Ближайшие мероприятия:*\n\n"
-                for event in upcoming_events:
-                    name = event.get("name")
-                    events_text += f"• *{name}*\n  📆 {event['event_date']} в {event['start_time']}\n  📍 {event['city']}\n\n"
-                await update.message.reply_markdown_v2(escape_markdown_v2(events_text))
             return MAIN_MENU
         # Если пользователь не существует
         else:
